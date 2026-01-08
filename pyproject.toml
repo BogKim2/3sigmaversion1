@@ -1,0 +1,14 @@
+[project]
+name = "dcr-converter"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "chardet>=5.2.0",
+    "openpyxl>=3.1.5",
+    "pandas>=2.3.3",
+    "pyinstaller>=6.17.0",
+    "pyside6>=6.10.1",
+    "xlrd>=2.0.2",
+]

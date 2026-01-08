@@ -1,0 +1,22 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Temporary files (Excel/PPT)
+~$*
+
+# Application outputs
+output/
+*.dat
+*.xlsx
+!Form measurement result files_form.xlsx
+!DCR format base new form - yamaha.xlsx
+files.json
+build/
+*.spec
