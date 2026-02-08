@@ -32,7 +32,9 @@ def save_file_paths(net_file: str, vendorspec_file: str,
                     etching_dir: str = "", form_outfile: str = "",
                     dimension_file: str = "", dimension_sheet: str = "",
                     lslusl_file: str = "", merged_file: str = "",
-                    operator_name: str = "") -> bool:
+                    operator_name: str = "",
+                    item_name: str = "", item_code: str = "",
+                    output_base_dir: str = "") -> bool:
     """
     파일 경로들을 JSON으로 저장
     
@@ -48,6 +50,9 @@ def save_file_paths(net_file: str, vendorspec_file: str,
         lslusl_file: LSLUSL 파일 경로
         merged_file: merged 파일 경로
         operator_name: 작업자 이름
+        item_name: 아이템 이름
+        item_code: 아이템 코드
+        output_base_dir: 출력 기본 디렉토리
         
     Returns:
         저장 성공 여부
@@ -69,7 +74,10 @@ def save_file_paths(net_file: str, vendorspec_file: str,
             "dimension_sheet": dimension_sheet,
             "lslusl_file": lslusl_file,
             "merged_file": merged_file,
-            "operator_name": operator_name
+            "operator_name": operator_name,
+            "item_name": item_name,
+            "item_code": item_code,
+            "output_base_dir": output_base_dir
         }
         
         with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
@@ -99,7 +107,10 @@ def load_file_paths() -> dict:
         "dimension_sheet": "",
         "lslusl_file": "",
         "merged_file": "",
-        "operator_name": ""
+        "operator_name": "",
+        "item_name": "",
+        "item_code": "",
+        "output_base_dir": ""
     }
     
     try:

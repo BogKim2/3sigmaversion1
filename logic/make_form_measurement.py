@@ -197,17 +197,101 @@ def get_dk_files_in_directory(etching_dir: str) -> list:
     return dk_files
 
 
+def _process_dk_files_into_workbook(ws, dk_files: list, debug_info: list):
+    """
+    DK 파일 리스트를 받아서 워크시트에 TDR 데이터를 채우는 공통 로직
+    
+    Args:
+        ws: openpyxl 워크시트 객체
+        dk_files: [(inner_value, file_path), ...] 리스트
+        debug_info: 디버그 메시지 리스트 (append됨)
+        
+    Returns:
+        (processed_count, tdr_map) 튜플
+    """
+    # Inner 값과 행 매핑 찾기
+    inner_to_row = {}  # inner_value -> row_number (Impedance NET resistance 행)
+    
+    for row in range(3, ws.max_row + 1):
+        inner_val = ws.cell(row=row, column=2).value  # B열 (Inner)
+        content_val = ws.cell(row=row, column=4).value  # D열 (Contents)
+        
+        if inner_val and content_val:
+            inner_str = str(inner_val).strip()
+            content_str = str(content_val).lower()
+            
+            # Impedance NET resistance 행 찾기
+            if 'impedance' in content_str and 'resistance' in content_str:
+                inner_to_row[inner_str] = row
+    
+    debug_info.append(f"Inner mappings: {list(inner_to_row.keys())}")
+    
+    # 각 DK 파일 처리
+    processed = 0
+    tdr_map = {}
+    
+    for inner_val, file_path in dk_files:
+        tdr_data = read_tdr_data_from_dk_file(file_path)
+        
+        if not tdr_data:
+            debug_info.append(f"No TDR data in {os.path.basename(file_path)}")
+            continue
+        
+        # Inner 값으로 해당 행 찾기
+        target_row = inner_to_row.get(inner_val)
+        
+        if target_row:
+            # E열(5)부터 데이터 채우기 (Impedance NET resistance 행)
+            for idx, val in enumerate(tdr_data):
+                col = 5 + idx  # E=5, F=6, ...
+                ws.cell(row=target_row, column=col, value=val)
+            # 시각화용 저장
+            tdr_map[inner_val] = tdr_data
+            
+            # 각 Inner 그룹의 4개 행 모두에 수식 추가
+            green_fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+            red_fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+            
+            for row_offset in range(4):  # 0, 1, 2, 3
+                row = target_row + row_offset
+                
+                ws.cell(row=row, column=40, value=f"=MIN(E{row}:AJ{row})")
+                ws.cell(row=row, column=41, value=f"=MAX(E{row}:AJ{row})")
+                ws.cell(row=row, column=42, value=f"=AVERAGE(E{row}:AJ{row})")
+                ws.cell(row=row, column=43, value=f'=IF(AN{row}>=AK{row},"OK","NG")')
+                ws.cell(row=row, column=44, value=f'=IF(AO{row}<=AM{row},"OK","NG")')
+                ws.cell(row=row, column=45, value=f'=IF(AND(AN{row}>=AK{row},AO{row}<=AM{row}),"OK","NG")')
+                
+                row_range = f"A{row}:AS{row}"
+                ws.conditional_formatting.add(
+                    row_range,
+                    FormulaRule(formula=[f'$AS{row}="OK"'], fill=green_fill)
+                )
+                ws.conditional_formatting.add(
+                    row_range,
+                    FormulaRule(formula=[f'$AS{row}="NG"'], fill=red_fill)
+                )
+            
+            processed += 1
+            debug_info.append(f"{os.path.basename(file_path)} -> Rows {target_row}-{target_row+3} ({len(tdr_data)} values + formulas)")
+        else:
+            debug_info.append(f"No row found for inner={inner_val}")
+    
+    return processed, tdr_map
+
+
 def fill_impedance_data(output_path: str, etching_dir: str) -> str:
     """
     DK 파일들에서 TDR 데이터를 읽어서 
     Form Measurement Result 파일의 Impedance NET resistance 행에 채움
+    (자동 모드: 디렉토리 스캔)
     
     Args:
         output_path: 출력 파일 경로
         etching_dir: etching 디렉토리 경로
         
     Returns:
-        결과 메시지
+        결과 메시지 (dict)
     """
     try:
         if not os.path.exists(output_path):
@@ -229,95 +313,8 @@ def fill_impedance_data(output_path: str, etching_dir: str) -> str:
         wb = load_workbook(output_path)
         ws = wb.active
         
-        # Inner 값과 행 매핑 찾기
-        # B열에서 Inner 값을 찾아서 해당 그룹의 시작 행 결정
-        inner_to_row = {}  # inner_value -> row_number (Impedance NET resistance 행)
-        
-        for row in range(3, ws.max_row + 1):
-            inner_val = ws.cell(row=row, column=2).value  # B열 (Inner)
-            content_val = ws.cell(row=row, column=4).value  # D열 (Contents)
-            
-            if inner_val and content_val:
-                inner_str = str(inner_val).strip()
-                content_str = str(content_val).lower()
-                
-                # Impedance NET resistance 행 찾기
-                if 'impedance' in content_str and 'resistance' in content_str:
-                    inner_to_row[inner_str] = row
-        
-        debug_info.append(f"Inner mappings: {list(inner_to_row.keys())}")
-        
-        # 각 DK 파일 처리
-        processed = 0
-        # 시각화를 위한 TDR 모음
-        tdr_map = {}
-        for inner_val, file_path in dk_files:
-            tdr_data = read_tdr_data_from_dk_file(file_path)
-            
-            if not tdr_data:
-                debug_info.append(f"No TDR data in {os.path.basename(file_path)}")
-                continue
-            
-            # Inner 값으로 해당 행 찾기
-            target_row = inner_to_row.get(inner_val)
-            
-            if target_row:
-                # E열(5)부터 데이터 채우기 (Impedance NET resistance 행)
-                for idx, val in enumerate(tdr_data):
-                    col = 5 + idx  # E=5, F=6, ...
-                    ws.cell(row=target_row, column=col, value=val)
-                # 시각화용 저장
-                tdr_map[inner_val] = tdr_data
-                
-                # 각 Inner 그룹의 4개 행 모두에 수식 추가
-                # Row: Impedance NET resistance (target_row)
-                # Row+1: Impedance NET Circuit width
-                # Row+2: Impedance NET thickness
-                # Row+3: Minimum NET Circuit width
-                green_fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")  # 초록색
-                red_fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")    # 빨간색
-                
-                for row_offset in range(4):  # 0, 1, 2, 3
-                    row = target_row + row_offset
-                    
-                    # Min = MIN(E{row}:AJ{row})
-                    ws.cell(row=row, column=40, value=f"=MIN(E{row}:AJ{row})")
-                    
-                    # Max = MAX(E{row}:AJ{row})
-                    ws.cell(row=row, column=41, value=f"=MAX(E{row}:AJ{row})")
-                    
-                    # Ave = AVERAGE(E{row}:AJ{row})
-                    ws.cell(row=row, column=42, value=f"=AVERAGE(E{row}:AJ{row})")
-                    
-                    # Judge1: Min >= LSL -> =IF(AN{row}>=AK{row},"OK","NG")
-                    ws.cell(row=row, column=43, value=f'=IF(AN{row}>=AK{row},"OK","NG")')
-                    
-                    # Judge2: Max <= USL -> =IF(AO{row}<=AM{row},"OK","NG")
-                    ws.cell(row=row, column=44, value=f'=IF(AO{row}<=AM{row},"OK","NG")')
-                    
-                    # Judge3: 둘 다 만족 -> =IF(AND(AN{row}>=AK{row},AO{row}<=AM{row}),"OK","NG")
-                    ws.cell(row=row, column=45, value=f'=IF(AND(AN{row}>=AK{row},AO{row}<=AM{row}),"OK","NG")')
-                    
-                    # 조건부 서식 추가 - AS열(Judge3) 값에 따라 전체 행(A~AS) 색상 적용
-                    # A열(1)부터 AS열(45)까지 전체 행에 조건부 서식 적용
-                    row_range = f"A{row}:AS{row}"
-                    
-                    # AS열(Judge3)이 OK이면 전체 행 초록색
-                    ws.conditional_formatting.add(
-                        row_range,
-                        FormulaRule(formula=[f'$AS{row}="OK"'], fill=green_fill)
-                    )
-                    
-                    # AS열(Judge3)이 NG이면 전체 행 빨간색
-                    ws.conditional_formatting.add(
-                        row_range,
-                        FormulaRule(formula=[f'$AS{row}="NG"'], fill=red_fill)
-                    )
-                
-                processed += 1
-                debug_info.append(f"{os.path.basename(file_path)} -> Rows {target_row}-{target_row+3} ({len(tdr_data)} values + formulas)")
-            else:
-                debug_info.append(f"No row found for inner={inner_val}")
+        # 공통 처리 로직 호출
+        processed, tdr_map = _process_dk_files_into_workbook(ws, dk_files, debug_info)
         
         # 파일 저장
         wb.save(output_path)
@@ -325,7 +322,61 @@ def fill_impedance_data(output_path: str, etching_dir: str) -> str:
         
         result_msg = f"Success: Filled Impedance data from {processed} DK files\n"
         result_msg += "Debug:\n  " + "\n  ".join(debug_info)
-        # 결과 메시지와 시각화 데이터 반환을 위해 dict 형태로 래핑
+        return {"message": result_msg, "tdr_map": tdr_map}
+        
+    except Exception as e:
+        import traceback
+        return f"Error: {str(e)}\n{traceback.format_exc()}"
+
+
+def fill_impedance_data_from_files(output_path: str, file_list: list) -> str:
+    """
+    사용자가 직접 선택한 DK 파일들에서 TDR 데이터를 읽어서
+    Form Measurement Result 파일의 Impedance NET resistance 행에 채움
+    (수동 모드: 개별 파일 선택)
+    
+    Args:
+        output_path: 출력 파일 경로
+        file_list: 사용자가 선택한 DK 파일 경로 리스트 [path1, path2, ...]
+        
+    Returns:
+        결과 메시지 (dict)
+    """
+    try:
+        if not os.path.exists(output_path):
+            return f"Error: Output file not found: {output_path}"
+        
+        if not file_list:
+            return f"Error: No DK files selected"
+        
+        debug_info = []
+        debug_info.append(f"Manual mode: {len(file_list)} files selected")
+        
+        # 파일 리스트를 (inner_value, file_path) 형태로 변환
+        dk_files = []
+        for file_path in file_list:
+            if os.path.exists(file_path):
+                inner_val = get_inner_value_from_filename(file_path)
+                dk_files.append((inner_val, file_path))
+            else:
+                debug_info.append(f"File not found: {file_path}")
+        
+        if not dk_files:
+            return f"Error: No valid DK files found"
+        
+        # 출력 파일 열기
+        wb = load_workbook(output_path)
+        ws = wb.active
+        
+        # 공통 처리 로직 호출
+        processed, tdr_map = _process_dk_files_into_workbook(ws, dk_files, debug_info)
+        
+        # 파일 저장
+        wb.save(output_path)
+        wb.close()
+        
+        result_msg = f"Success: Filled Impedance data from {processed} DK files (Manual mode)\n"
+        result_msg += "Debug:\n  " + "\n  ".join(debug_info)
         return {"message": result_msg, "tdr_map": tdr_map}
         
     except Exception as e:

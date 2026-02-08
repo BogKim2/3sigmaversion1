@@ -7,7 +7,8 @@ from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QTabWidget, QPushButton, QLineEdit, QTextEdit,
     QLabel, QFileDialog, QGroupBox, QInputDialog, QMessageBox,
-    QFrame, QSizePolicy, QApplication, QComboBox
+    QFrame, QSizePolicy, QApplication, QComboBox,
+    QRadioButton, QButtonGroup, QListWidget, QAbstractItemView
 )
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont, QColor, QPalette, QPixmap
@@ -22,10 +23,10 @@ from logic.make_input_check_pin import make_input_check_pin_sheet
 from logic.make_int_med import make_int_med_file, make_input_check_pin_final
 from logic.make_judge_check_pin import make_judge_check_pin_sheet
 from logic.make_dcr import make_dcr_sheet
-from logic.make_form_measurement import create_form_measurement_file, fill_impedance_data, fill_dimension_data, fill_lslusl_data
+from logic.make_form_measurement import create_form_measurement_file, fill_impedance_data, fill_impedance_data_from_files, fill_dimension_data, fill_lslusl_data
 from logic.visualizer import save_dcr_plots_from_file, save_form_plots_from_workbook, save_lslusl_plots_from_data
 from logic.calculate_lsl_usl import calculate_lsl_usl_full
-from logic.config_manager import save_file_paths, load_file_paths
+from logic.config_manager import save_file_paths, load_file_paths, get_app_dir
 
 
 # Material Design 스타일 시트
@@ -65,6 +66,7 @@ QLabel#header_programmer {
 /* 그룹박스 스타일 */
 QGroupBox {
     font-weight: bold;
+    color: #424242;
     border: 1px solid #E0E0E0;
     border-radius: 8px;
     margin-top: 12px;
@@ -85,6 +87,7 @@ QLineEdit {
     border-radius: 4px;
     padding: 8px 12px;
     background-color: white;
+    color: #212121;
     selection-background-color: #1976D2;
 }
 
@@ -167,6 +170,7 @@ QTabWidget::pane {
 
 QTabBar::tab {
     background-color: #EEEEEE;
+    color: #616161;
     border: 1px solid #E0E0E0;
     border-bottom: none;
     border-top-left-radius: 4px;
@@ -194,6 +198,33 @@ QTextEdit {
     background-color: #FAFAFA;
     font-family: 'Consolas', 'Courier New', monospace;
     font-size: 9pt;
+}
+
+/* 콤보박스 스타일 */
+QComboBox {
+    color: #212121;
+    background-color: white;
+    border: 1px solid #BDBDBD;
+    border-radius: 4px;
+    padding: 6px 12px;
+}
+
+QComboBox QAbstractItemView {
+    color: #212121;
+    background-color: white;
+}
+
+/* 라디오버튼 스타일 */
+QRadioButton {
+    color: #424242;
+}
+
+/* 리스트 위젯 스타일 */
+QListWidget {
+    color: #212121;
+    background-color: white;
+    border: 1px solid #BDBDBD;
+    border-radius: 4px;
 }
 
 /* 레이블 스타일 */
@@ -232,7 +263,7 @@ class MainWindow(QMainWindow):
     
     # 프로그램 정보
     PROGRAM_NAME = "DCR Format Converter"
-    VERSION = "1.0"
+    VERSION = "1.1"
     PROGRAMMER = "Sangwoo Kim"
     ACKNOWLEDGMENTS = "Lots of help from Opus4.5 and Gemini"
     
@@ -258,6 +289,9 @@ class MainWindow(QMainWindow):
         self.lslusl_file_path = config.get("lslusl_file", "")
         self.merged_file_path = config.get("merged_file", "")
         self.operator_name = config.get("operator_name", "")
+        self.item_name = config.get("item_name", "")
+        self.item_code = config.get("item_code", "")
+        self.output_base_dir = config.get("output_base_dir", "")
         
         # 진행 상황 로그
         self.progress_logs = []
@@ -303,13 +337,7 @@ class MainWindow(QMainWindow):
     def _save_log_file(self, log_content: str, tab_name: str = ""):
         """로그를 파일로 저장 (output 폴더 내 plain ASCII .dat 파일)"""
         try:
-            # 애플리케이션 실행 디렉토리 기준
-            from logic.config_manager import get_app_dir
-            app_dir = get_app_dir()
-            output_dir = os.path.join(app_dir, "output")
-            
-            if not os.path.exists(output_dir):
-                os.makedirs(output_dir)
+            output_dir = self._get_output_dir()
                 
             operator = self.operator_input.text().strip() if hasattr(self, 'operator_input') else "Unknown"
             if not operator:
@@ -334,6 +362,26 @@ class MainWindow(QMainWindow):
         except Exception as e:
             return f"Failed to save log: {str(e)}"
     
+    def _get_output_dir(self) -> str:
+        """
+        출력 디렉토리 경로를 반환합니다.
+        {output_base_dir}/{ItemName}_{ItemCode}/ 구조를 사용합니다.
+        """
+        # 사용자 지정 base dir, 없으면 기본 output 디렉토리
+        base_dir = self.output_dir_edit.text().strip() if hasattr(self, 'output_dir_edit') and self.output_dir_edit.text().strip() else os.path.join(get_app_dir(), "output")
+        
+        # Item Name + Item Code 폴더명
+        folder_name = self._get_output_folder_name()
+        if folder_name and not folder_name.startswith("("):
+            output_dir = os.path.join(base_dir, folder_name)
+        else:
+            output_dir = base_dir
+        
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        
+        return output_dir
+    
     def _get_output_filename(self, base_name: str, extension: str = ".xlsx", 
                               suffix_type: str = "operator_date") -> str:
         """
@@ -344,13 +392,7 @@ class MainWindow(QMainWindow):
             extension: 확장자
             suffix_type: "operator_date" (Operator_날짜), "final" (_final만), "none" (접미사 없음)
         """
-        # 애플리케이션 실행 디렉토리 기준
-        from logic.config_manager import get_app_dir
-        app_dir = get_app_dir()
-        output_dir = os.path.join(app_dir, "output")
-        
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
+        output_dir = self._get_output_dir()
             
         operator = self.operator_input.text().strip() if hasattr(self, 'operator_input') else ""
         date_str = datetime.now().strftime("%Y%m%d")
@@ -448,7 +490,11 @@ class MainWindow(QMainWindow):
         content_layout.setContentsMargins(16, 16, 16, 16)
         content_layout.setSpacing(12)
         
-        # Operator 입력 영역 (탭 위에 배치하여 모든 탭에서 공통으로 사용)
+        # === 공통 설정 영역 (탭 위에 배치) ===
+        common_group = QGroupBox("Common Settings")
+        common_layout = QVBoxLayout(common_group)
+        
+        # Row 1: Operator Name + Auto Execute
         operator_layout = QHBoxLayout()
         operator_label = QLabel("Operator Name:")
         operator_label.setFixedWidth(120)
@@ -461,14 +507,68 @@ class MainWindow(QMainWindow):
         operator_layout.addWidget(self.operator_input)
         operator_layout.addSpacing(20)
         
-        # Auto Execute 버튼 (탭 위에 배치)
+        # Auto Execute 버튼
         self.auto_execute_btn = QPushButton("Auto Execute All")
         self.auto_execute_btn.setObjectName("auto_execute_btn")
         self.auto_execute_btn.setToolTip("Executes all tabs sequentially (Tab1 → Tab2 → Tab3).\nThis may take several minutes. Please wait patiently.")
         self.auto_execute_btn.clicked.connect(self._auto_execute_all)
         operator_layout.addWidget(self.auto_execute_btn)
+        common_layout.addLayout(operator_layout)
         
-        content_layout.addLayout(operator_layout)
+        # Row 2: Item Name + Item Code
+        item_layout = QHBoxLayout()
+        item_name_label = QLabel("Item Name:")
+        item_name_label.setFixedWidth(120)
+        item_name_label.setStyleSheet("font-weight: bold; color: #1976D2;")
+        self.item_name_input = QLineEdit()
+        self.item_name_input.setPlaceholderText("e.g., FPC")
+        self.item_name_input.setText(self.item_name)
+        self.item_name_input.textChanged.connect(self._on_item_info_changed)
+        item_layout.addWidget(item_name_label)
+        item_layout.addWidget(self.item_name_input)
+        item_layout.addSpacing(20)
+        
+        item_code_label = QLabel("Item Code:")
+        item_code_label.setFixedWidth(80)
+        item_code_label.setStyleSheet("font-weight: bold; color: #1976D2;")
+        self.item_code_input = QLineEdit()
+        self.item_code_input.setPlaceholderText("e.g., 7S3493")
+        self.item_code_input.setText(self.item_code)
+        self.item_code_input.textChanged.connect(self._on_item_info_changed)
+        item_layout.addWidget(item_code_label)
+        item_layout.addWidget(self.item_code_input)
+        common_layout.addLayout(item_layout)
+        
+        # Row 3: Output Directory
+        output_dir_layout = QHBoxLayout()
+        output_dir_label = QLabel("Output Directory:")
+        output_dir_label.setFixedWidth(120)
+        output_dir_label.setStyleSheet("font-weight: bold; color: #1976D2;")
+        self.output_dir_edit = QLineEdit()
+        self.output_dir_edit.setReadOnly(True)
+        default_output_dir = self.output_base_dir if self.output_base_dir else os.path.join(get_app_dir(), "output")
+        self.output_dir_edit.setText(default_output_dir)
+        self.output_dir_edit.setPlaceholderText("Default: {app_dir}/output/")
+        output_dir_browse_btn = QPushButton("Browse")
+        output_dir_browse_btn.setObjectName("browse_btn")
+        output_dir_browse_btn.clicked.connect(self._browse_output_directory)
+        output_dir_layout.addWidget(output_dir_label)
+        output_dir_layout.addWidget(self.output_dir_edit)
+        output_dir_layout.addWidget(output_dir_browse_btn)
+        common_layout.addLayout(output_dir_layout)
+        
+        # Row 4: 출력 폴더 미리보기
+        preview_layout = QHBoxLayout()
+        preview_label = QLabel("Output Folder:")
+        preview_label.setFixedWidth(120)
+        self.output_folder_preview = QLabel(self._get_output_folder_name())
+        self.output_folder_preview.setStyleSheet("color: #388E3C; font-weight: bold; font-style: italic;")
+        preview_layout.addWidget(preview_label)
+        preview_layout.addWidget(self.output_folder_preview)
+        preview_layout.addStretch()
+        common_layout.addLayout(preview_layout)
+        
+        content_layout.addWidget(common_group)
         
         # 탭 위젯 생성
         self.tab_widget = QTabWidget()
@@ -599,6 +699,41 @@ class MainWindow(QMainWindow):
         self.operator_name = text
         self._save_config()
     
+    def _on_item_info_changed(self):
+        """Item Name 또는 Item Code 변경 시 호출"""
+        self.item_name = self.item_name_input.text().strip()
+        self.item_code = self.item_code_input.text().strip()
+        # 미리보기 업데이트
+        if hasattr(self, 'output_folder_preview'):
+            self.output_folder_preview.setText(self._get_output_folder_name())
+        self._save_config()
+    
+    def _get_output_folder_name(self) -> str:
+        """Item Name + Item Code로 출력 폴더명 생성"""
+        name = self.item_name_input.text().strip() if hasattr(self, 'item_name_input') else self.item_name
+        code = self.item_code_input.text().strip() if hasattr(self, 'item_code_input') else self.item_code
+        if name and code:
+            return f"{name}_{code}"
+        elif name:
+            return name
+        elif code:
+            return code
+        else:
+            return "(Enter Item Name and Item Code above)"
+    
+    def _browse_output_directory(self):
+        """출력 기본 디렉토리 선택"""
+        current_dir = self.output_dir_edit.text() if self.output_dir_edit.text() else ""
+        dir_path = QFileDialog.getExistingDirectory(
+            self,
+            "Select Output Base Directory",
+            current_dir
+        )
+        if dir_path:
+            self.output_base_dir = dir_path
+            self.output_dir_edit.setText(dir_path)
+            self._save_config()
+    
     def _load_saved_paths(self):
         """저장된 파일 경로를 UI에 반영"""
         if self.net_file_path:
@@ -644,7 +779,10 @@ class MainWindow(QMainWindow):
             self.dimension_sheet_name if hasattr(self, 'dimension_sheet_name') else "",
             self.lslusl_file_edit.text() if hasattr(self, 'lslusl_file_edit') else "",
             self.merged_file_path if hasattr(self, 'merged_file_path') else "",
-            self.operator_input.text() if hasattr(self, 'operator_input') else ""
+            self.operator_input.text() if hasattr(self, 'operator_input') else "",
+            item_name=self.item_name_input.text().strip() if hasattr(self, 'item_name_input') else "",
+            item_code=self.item_code_input.text().strip() if hasattr(self, 'item_code_input') else "",
+            output_base_dir=self.output_dir_edit.text() if hasattr(self, 'output_dir_edit') else ""
         )
     
     def _browse_net_file(self):
@@ -877,7 +1015,7 @@ class MainWindow(QMainWindow):
         
         self._log_progress(f"Generating plots from output file...")
         try:
-            plots = save_dcr_plots_from_file(current_outfile, operator)
+            plots = save_dcr_plots_from_file(current_outfile, operator, output_dir=self._get_output_dir())
             if plots:
                 self._log_progress(f"Generated {len(plots)} plots:")
                 for p in plots:
@@ -914,8 +1052,28 @@ class MainWindow(QMainWindow):
         input_group = QGroupBox("Input Files")
         input_layout = QVBoxLayout(input_group)
         
-        # Etching 디렉토리 선택
-        etching_layout = QHBoxLayout()
+        # === Etching 모드 선택 ===
+        etching_mode_group = QGroupBox("Etching File Mode")
+        etching_mode_layout = QVBoxLayout(etching_mode_group)
+        
+        # 라디오 버튼 (자동/수동)
+        radio_layout = QHBoxLayout()
+        self.etching_mode_group_btn = QButtonGroup(self)
+        self.etching_auto_radio = QRadioButton("Auto (Directory Scan)")
+        self.etching_manual_radio = QRadioButton("Manual (Select Files)")
+        self.etching_auto_radio.setChecked(True)
+        self.etching_mode_group_btn.addButton(self.etching_auto_radio, 0)
+        self.etching_mode_group_btn.addButton(self.etching_manual_radio, 1)
+        self.etching_auto_radio.toggled.connect(self._on_etching_mode_changed)
+        radio_layout.addWidget(self.etching_auto_radio)
+        radio_layout.addWidget(self.etching_manual_radio)
+        radio_layout.addStretch()
+        etching_mode_layout.addLayout(radio_layout)
+        
+        # --- 자동 모드 위젯 ---
+        self.etching_auto_widget = QWidget()
+        auto_layout = QHBoxLayout(self.etching_auto_widget)
+        auto_layout.setContentsMargins(0, 0, 0, 0)
         etching_label = QLabel("Etching Directory:")
         etching_label.setFixedWidth(120)
         self.etching_dir_edit = QLineEdit()
@@ -924,11 +1082,48 @@ class MainWindow(QMainWindow):
         etching_browse_btn = QPushButton("Browse")
         etching_browse_btn.setObjectName("browse_btn")
         etching_browse_btn.clicked.connect(self._browse_etching_directory)
+        auto_layout.addWidget(etching_label)
+        auto_layout.addWidget(self.etching_dir_edit)
+        auto_layout.addWidget(etching_browse_btn)
+        etching_mode_layout.addWidget(self.etching_auto_widget)
         
-        etching_layout.addWidget(etching_label)
-        etching_layout.addWidget(self.etching_dir_edit)
-        etching_layout.addWidget(etching_browse_btn)
-        input_layout.addLayout(etching_layout)
+        # --- 수동 모드 위젯 ---
+        self.etching_manual_widget = QWidget()
+        manual_layout = QVBoxLayout(self.etching_manual_widget)
+        manual_layout.setContentsMargins(0, 0, 0, 0)
+        
+        # 파일 리스트
+        self.etching_file_list = QListWidget()
+        self.etching_file_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.etching_file_list.setMinimumHeight(100)
+        self.etching_file_list.setMaximumHeight(150)
+        self.etching_file_list.setStyleSheet("QListWidget { font-size: 9pt; }")
+        manual_layout.addWidget(self.etching_file_list)
+        
+        # 파일 추가/제거 버튼
+        file_btn_layout = QHBoxLayout()
+        add_files_btn = QPushButton("Add Files")
+        add_files_btn.setObjectName("browse_btn")
+        add_files_btn.clicked.connect(self._add_etching_files)
+        remove_files_btn = QPushButton("Remove Selected")
+        remove_files_btn.setObjectName("browse_btn")
+        remove_files_btn.setStyleSheet("QPushButton { background-color: #C62828; } QPushButton:hover { background-color: #B71C1C; }")
+        remove_files_btn.clicked.connect(self._remove_etching_files)
+        clear_files_btn = QPushButton("Clear All")
+        clear_files_btn.setObjectName("browse_btn")
+        clear_files_btn.setStyleSheet("QPushButton { background-color: #E65100; } QPushButton:hover { background-color: #BF360C; }")
+        clear_files_btn.clicked.connect(self._clear_etching_files)
+        
+        file_btn_layout.addWidget(add_files_btn)
+        file_btn_layout.addWidget(remove_files_btn)
+        file_btn_layout.addWidget(clear_files_btn)
+        file_btn_layout.addStretch()
+        manual_layout.addLayout(file_btn_layout)
+        
+        self.etching_manual_widget.setVisible(False)  # 초기에는 숨김
+        etching_mode_layout.addWidget(self.etching_manual_widget)
+        
+        input_layout.addWidget(etching_mode_group)
         
         # Dimension 파일 선택
         dimension_layout = QHBoxLayout()
@@ -1019,6 +1214,38 @@ class MainWindow(QMainWindow):
         # 탭에 추가
         self.tab_widget.addTab(tab, "make Form Measurement Result file")
 
+    def _on_etching_mode_changed(self, checked):
+        """에칭 모드 변경 시 UI 전환"""
+        if not checked:
+            return
+        is_auto = self.etching_auto_radio.isChecked()
+        self.etching_auto_widget.setVisible(is_auto)
+        self.etching_manual_widget.setVisible(not is_auto)
+    
+    def _add_etching_files(self):
+        """수동 모드: DK 파일 추가"""
+        file_paths, _ = QFileDialog.getOpenFileNames(
+            self,
+            "Select DK Files",
+            "",
+            "Excel Files (*.xls *.xlsx);;All Files (*.*)"
+        )
+        if file_paths:
+            for fp in file_paths:
+                # 중복 방지
+                existing = [self.etching_file_list.item(i).text() for i in range(self.etching_file_list.count())]
+                if fp not in existing:
+                    self.etching_file_list.addItem(fp)
+    
+    def _remove_etching_files(self):
+        """수동 모드: 선택된 DK 파일 제거"""
+        for item in self.etching_file_list.selectedItems():
+            self.etching_file_list.takeItem(self.etching_file_list.row(item))
+    
+    def _clear_etching_files(self):
+        """수동 모드: 모든 DK 파일 제거"""
+        self.etching_file_list.clear()
+    
     def _browse_etching_directory(self):
         """Etching 디렉토리 선택"""
         start_dir = self.etching_dir_edit.text() if self.etching_dir_edit.text() else ""
@@ -1112,20 +1339,45 @@ class MainWindow(QMainWindow):
         dim_map = {}
 
         # === Step 2: DK 파일에서 Impedance 데이터 ===
-        if etching_dir:
-            self._log_progress("=" * 60, tab_index=1)
-            self._log_progress("[ Step 2: Fill Impedance Data from DK Files ]", tab_index=1)
-            self._log_progress("=" * 60, tab_index=1)
-            self._log_progress(f"Etching Directory: {etching_dir}", tab_index=1)
-            
-            result2 = fill_impedance_data(output_path, etching_dir)
-            if isinstance(result2, dict):
-                tdr_map = result2.get("tdr_map", {})
-                self._log_progress(result2.get("message", ""), tab_index=1)
+        is_auto_mode = self.etching_auto_radio.isChecked()
+        
+        if is_auto_mode:
+            # 자동 모드: 디렉토리 스캔
+            if etching_dir:
+                self._log_progress("=" * 60, tab_index=1)
+                self._log_progress("[ Step 2: Fill Impedance Data from DK Files (Auto Mode) ]", tab_index=1)
+                self._log_progress("=" * 60, tab_index=1)
+                self._log_progress(f"Etching Directory: {etching_dir}", tab_index=1)
+                
+                result2 = fill_impedance_data(output_path, etching_dir)
+                if isinstance(result2, dict):
+                    tdr_map = result2.get("tdr_map", {})
+                    self._log_progress(result2.get("message", ""), tab_index=1)
+                else:
+                    self._log_progress(result2, tab_index=1)
             else:
-                self._log_progress(result2, tab_index=1)
+                self._log_progress("Note: No etching directory selected. Skipping DK file processing.", tab_index=1)
         else:
-            self._log_progress("Note: No etching directory selected. Skipping DK file processing.", tab_index=1)
+            # 수동 모드: 사용자가 선택한 파일 리스트
+            file_count = self.etching_file_list.count()
+            if file_count > 0:
+                self._log_progress("=" * 60, tab_index=1)
+                self._log_progress("[ Step 2: Fill Impedance Data from DK Files (Manual Mode) ]", tab_index=1)
+                self._log_progress("=" * 60, tab_index=1)
+                
+                file_list = [self.etching_file_list.item(i).text() for i in range(file_count)]
+                self._log_progress(f"Selected {len(file_list)} files:", tab_index=1)
+                for fp in file_list:
+                    self._log_progress(f"  - {os.path.basename(fp)}", tab_index=1)
+                
+                result2 = fill_impedance_data_from_files(output_path, file_list)
+                if isinstance(result2, dict):
+                    tdr_map = result2.get("tdr_map", {})
+                    self._log_progress(result2.get("message", ""), tab_index=1)
+                else:
+                    self._log_progress(result2, tab_index=1)
+            else:
+                self._log_progress("Note: No DK files selected in manual mode. Skipping DK file processing.", tab_index=1)
         
         self._log_progress("", tab_index=1)
         
@@ -1219,7 +1471,7 @@ class MainWindow(QMainWindow):
 
         # === Visualization (PNG 저장) ===
         try:
-            plots = save_form_plots_from_workbook(tdr_map, dim_map, operator)
+            plots = save_form_plots_from_workbook(tdr_map, dim_map, operator, output_dir=self._get_output_dir())
             if plots:
                 for p in plots:
                     self._log_progress(f"Plot saved: {p}", tab_index=1)
@@ -1450,7 +1702,7 @@ class MainWindow(QMainWindow):
                 
                 if data_rows:
                     data_df = pd.DataFrame(data_rows)
-                    plots = save_lslusl_plots_from_data(data_df, lsl_list, usl_list, operator)
+                    plots = save_lslusl_plots_from_data(data_df, lsl_list, usl_list, operator, output_dir=self._get_output_dir())
                     if plots:
                         self._log_progress(f"Generated {len(plots)} plots:", tab_index=2)
                         for p in plots:

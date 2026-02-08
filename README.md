@@ -6,12 +6,19 @@
 
 <p align="center">
   <strong>DCR Format Conversion & 3-Sigma LSL/USL Calculation Tool</strong><br>
-  <em>Version 1.0 | Programmed by Sangwoo Kim</em>
+  <em>Version 1.1 | Programmed by Sangwoo Kim</em>
 </p>
 
 ---
 
-## 📋 Table of Contents
+**Language / 言語 / 언어:**
+[English](#english) | [日本語](#日本語) | [한국어](#한국어)
+
+---
+
+# English
+
+## Table of Contents
 
 1. [Overview](#overview)
 2. [Features](#features)
@@ -19,418 +26,203 @@
 4. [Installation](#installation)
 5. [Quick Start Guide](#quick-start-guide)
 6. [Detailed User Guide](#detailed-user-guide)
-7. [Program Architecture](#program-architecture)
+7. [Output Structure](#output-structure)
 8. [File Structure](#file-structure)
-9. [Input/Output File Specifications](#inputoutput-file-specifications)
-10. [Troubleshooting](#troubleshooting)
-11. [FAQ](#faq)
-12. [License & Credits](#license--credits)
+9. [Troubleshooting](#troubleshooting)
 
 ---
 
 ## Overview
 
-**DCR Format Converter** is a professional desktop application designed for Sumitomo Electric Industries' quality control and measurement data processing workflows. The tool automates the complex process of:
+**DCR Format Converter** is a professional desktop application designed for Sumitomo Electric Industries' quality control and measurement data processing workflows. It automates:
 
 - Converting NET files and Excel data into standardized DCR format
 - Processing Form Measurement Result data with TDR/Impedance analysis
-- Calculating 3-Sigma LSL (Lower Specification Limit) and USL (Upper Specification Limit) statistics
-
-This application eliminates hours of manual Excel manipulation and ensures consistent, error-free data processing.
+- Calculating 3-Sigma LSL/USL (Lower/Upper Specification Limit) statistics
+- Generating statistical visualization charts (PNG)
 
 ---
 
 ## Features
 
-### Tab 1: Make DCR Format
-- ✅ Parse `.NET` files (network topology files)
-- ✅ Extract vendor specifications from Excel
-- ✅ Generate DE Requirement sheets
-- ✅ Create Input Check Pin sheets with formulas
-- ✅ Build Judge (check pin) evaluation sheets
-- ✅ Produce final DCR sheets
+### Common Settings (Header Area)
+| Field | Description |
+|-------|-------------|
+| **Operator Name** | Your name (required for execution) |
+| **Item Name** | Product item name (e.g., `FPC`) |
+| **Item Code** | Product item code (e.g., `7S3493`) |
+| **Output Directory** | Base output directory (default: `{app_dir}/output/`) |
+| **Output Folder Preview** | Shows real-time preview: `{ItemName}_{ItemCode}` |
+| **Auto Execute All** | Runs all 3 tabs sequentially |
 
-### Tab 2: Make Form Measurement Result File
-- ✅ Process DK files (DK 1.5, DK 1.6, ... DK CENTER)
-- ✅ Extract TDR (Time Domain Reflectometry) data
-- ✅ Fill Impedance NET resistance values
-- ✅ Process Dimension data (Circuit Width/Thickness)
-- ✅ Apply LSL/Center/USL specifications
-- ✅ Auto-calculate Min/Max/Average with conditional formatting
+### Tab 1: Make DCR Format
+- Parse `.NET` files (network topology)
+- Extract vendor specifications from Excel
+- Generate: Vendor, DE Requirement, Input Check Pin, Judge (check pin), DCR sheets
+- Auto-generate Cover Page
+- Statistical plots: Vendor Spec, Spec Range, Part Distribution, Judge Results, DCR Analysis
+
+### Tab 2: Make Form Measurement Result
+- **Two etching modes:**
+  - **Auto Mode** - Scan a directory for all DK files automatically
+  - **Manual Mode** - Select individual DK files (useful when 1-2 results are out of spec and you want to choose which conditions to include)
+- Fill Impedance/TDR data from DK files
+- Fill Dimension data (Circuit Width / Thickness)
+- Fill LSL/Center/USL specification values
+- Statistical plots: TDR Box Plot, Violin Plot, Dimension Trend, Distribution
 
 ### Tab 3: Calculate LSL USL
-- ✅ Process merged measurement files
-- ✅ Calculate comprehensive statistics:
-  - Min, Max, Average, Median, Stdev
-  - IQR (Interquartile Range)
-  - 1st Quartile - 4×IQR, 3rd Quartile + 4×IQR
-  - AverageIfs, StdevIfs (outlier-filtered)
-  - LSL = A - 3B, USL = A + 3B
-- ✅ Generate visualization plots (PNG files)
-
-### Additional Features
-- 🎨 Material Design UI with Sumitomo branding
-- 📊 Real-time progress logging
-- 💾 Automatic configuration persistence
-- 📁 Organized output directory structure
-- 📈 Matplotlib-based data visualization
-- 🔄 Auto Execute All functionality
+- 3-Sigma calculation from merged measurement data
+- Auto-reference DCR file from Tab 1 output
+- Statistical plots: Control Chart, Cpk Analysis, Pass/Fail Ratio, Histograms
 
 ---
 
 ## System Requirements
 
-| Component | Minimum | Recommended |
-|-----------|---------|-------------|
-| **OS** | Windows 10 (64-bit) | Windows 11 (64-bit) |
-| **RAM** | 4 GB | 8 GB+ |
-| **Disk Space** | 500 MB | 1 GB |
-| **Python** | 3.12+ | 3.12+ |
-| **Display** | 1280×720 | 1920×1080 |
+| Component | Requirement |
+|-----------|-------------|
+| OS | Windows 10 / 11 |
+| Python | 3.12 or higher |
+| RAM | 4 GB minimum |
+| Display | 1280 x 1024 minimum |
 
-### For Standalone Executable
-- No Python installation required
-- Download and run `DCR_Converter.exe` directly
+### Dependencies
+```
+PySide6 >= 6.10.1
+openpyxl >= 3.1.5
+pandas >= 2.3.3
+matplotlib >= 3.9.0
+scipy >= 1.11.0
+xlrd >= 2.0.2
+chardet >= 5.2.0
+```
 
 ---
 
 ## Installation
 
-### Option A: Run Standalone Executable (Recommended for End Users)
-
-1. Download `DCR_Converter.exe` from the `dist/` folder
-2. Copy `files.json` configuration file to the same directory
-3. Double-click to run
-
-### Option B: Run from Source (For Developers)
-
-#### Step 1: Install UV Package Manager
+### Option A: Run from Source
 ```bash
-# Windows (PowerShell)
-powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+# Clone repository
+git clone https://github.com/BogKim2/3sigmaversion1.git
+cd 3sigmaversion1
 
-# Or using pip
-pip install uv
-```
-
-#### Step 2: Clone and Setup
-```bash
-# Navigate to project directory
-cd G:\dback\00_sumitomo_sangwoo\pythonprogram\0105python
-
-# Create virtual environment and install dependencies
+# Install dependencies (using uv or pip)
 uv sync
+# or
+pip install -r requirements.txt
 
-# Activate virtual environment
-.venv\Scripts\activate
-```
-
-#### Step 3: Run the Application
-```bash
+# Run the application
 python main.py
 ```
 
-### Option C: Build Executable from Source
-
-```bash
-# Make sure you're in the project directory with venv activated
-python build_exe.py
-```
-
-The executable will be created in the `dist/` folder.
+### Option B: Run as Executable
+- Download `DCR_Converter.exe` from the dist folder
+- Place it alongside the template file `Form measurement result files_form.xlsx`
+- Double-click to run
 
 ---
 
 ## Quick Start Guide
 
-### 🚀 5-Minute Quick Start
+1. **Launch** the application (`python main.py` or `DCR_Converter.exe`)
+2. **Fill in Common Settings:**
+   - Enter your **Operator Name**
+   - Enter **Item Name** and **Item Code** (output folder will be `{ItemName}_{ItemCode}`)
+   - Optionally select a custom **Output Directory**
+3. **Tab 1** - Select NET, Vendorspec, and Partpin files, then click **Execute**
+4. **Tab 2** - Choose etching mode (Auto/Manual), select Dimension and LSLUSL files, then click **Execute**
+5. **Tab 3** - Select Merged file, then click **Execute**
 
-1. **Launch** the application (`DCR_Converter.exe` or `python main.py`)
-
-2. **Enter Operator Name** at the top of the window
-
-3. **Tab 1 - DCR Format:**
-   - Click "Browse" to select your `.NET` file
-   - Click "Browse" to select vendorspec Excel file
-   - Click "Browse" to select partpin Excel file
-   - Click "Execute" button
-
-4. **Tab 2 - Form Measurement:**
-   - Click "Browse" to select etching directory (containing DK files)
-   - Click "Browse" to select dimension file
-   - Click "Browse" to select LSLUSL file
-   - Click "Execute" button
-
-5. **Tab 3 - Calculate LSL USL:**
-   - Click "Browse" to select merged file
-   - Click "Execute" button
-
-6. **Or simply click "Auto Execute All"** to run all tabs sequentially!
-
-7. **Find your outputs** in the `output/` folder
+> **Tip:** Use **Auto Execute All** to run all three tabs sequentially with one click.
 
 ---
 
 ## Detailed User Guide
 
-### Starting the Application
+### Common Settings
 
-When you launch the application, you'll see a professional interface with:
-- **Header**: Sumitomo Electric logo and program version
-- **Operator Input**: Enter your name here (required)
-- **Three Tabs**: Each for different processing stages
-- **Auto Execute All Button**: Runs all tabs in sequence
+These settings are shared across all tabs and appear at the top of the window.
 
-### Understanding the Tabs
+- **Operator Name**: Required before any execution. Used in output filenames.
+- **Item Name / Item Code**: Combined to create the output subfolder name. For example, if Item Name = `FPC` and Item Code = `7S3493`, output goes to `FPC_7S3493/`.
+- **Output Directory**: Click **Browse** to change the base output directory. Default is `{app_dir}/output/`.
 
-#### Tab 1: Make DCR Format
+### Tab 1: Make DCR Format
 
-This tab converts raw network and specification files into the standardized DCR format.
+**Input files required:**
+| File | Format | Description |
+|------|--------|-------------|
+| NET File | `.NET` | Network topology file |
+| Vendorspec File | `.xlsx` | Vendor specification data |
+| Partpin File | `.xlsx` | Part & pin assignment data |
 
-**Required Input Files:**
+**Steps executed:**
+1. Make Vendor Sheet
+2. Make DE Requirement Sheet
+3. Make Input Check Pin Sheet
+4. Create int_med.xlsx (intermediate file)
+5. Create final Input Check Pin sheet
+6. Create Judge (check pin) sheet
+7. Create DCR sheet
+8. Add Cover Page
+9. Generate statistical plots
 
-| File Type | Description | Example |
-|-----------|-------------|---------|
-| NET File | Network topology definition | `7S3493-994110-6CRMEV.NET` |
-| Vendorspec File | Vendor specifications Excel | `099-51612-03-Sumitomo.xlsx` |
-| Partpin File | Part-pin mapping Excel | `6CRMEV-P2-POR_回路図 - FPC r1.xlsx` |
+**Output:** `DCR_format_yamaha_{Operator}_{Date}.xlsx`
 
-**Processing Steps:**
-1. **Make Vendor Sheet** - Copies vendor specifications
-2. **Make DE Requirement Sheet** - Extracts 4-wire pair information
-3. **Make Input Check Pin Sheet** - Creates pin checking structure
-4. **Create int_med.xlsx** - Intermediate 4W grouping file
-5. **Create Input Check Pin Final** - Merges all pin data
-6. **Create Judge (check pin)** - Adds judgment formulas
-7. **Create DCR Sheet** - Final DCR format output
-8. **Add Cover Page** - Adds metadata and traceability
+### Tab 2: Make Form Measurement Result
 
-**Output:**
-- `DCR_format_yamaha_{Operator}_{Date}.xlsx`
+**Etching File Mode:**
 
-#### Tab 2: Make Form Measurement Result File
+| Mode | When to Use |
+|------|-------------|
+| **Auto (Directory Scan)** | Normal case: all DK files in a directory should be processed |
+| **Manual (Select Files)** | When some conditions are out of spec and you want to select only valid DK files |
 
-This tab processes measurement data from etching tests.
+- **Auto Mode**: Select an etching directory. All files matching `DK*.xls` will be processed.
+- **Manual Mode**: Click **Add Files** to select individual DK files. Use **Remove Selected** or **Clear All** to manage the list.
 
-**Required Input Files:**
+**Additional input files:**
+| File | Description |
+|------|-------------|
+| Dimension File | Cross-section measurement data (e.g., `7E3493-00003.xlsx`) |
+| Dimension Sheet | Select the sheet to use from the dropdown |
+| LSLUSL File | LSL/Center/USL specification values |
 
-| File Type | Description | Example |
-|-----------|-------------|---------|
-| Etching Directory | Folder containing DK*.xls files | `etching/` |
-| Dimension File | Circuit width/thickness data | `7E3493-00003.xlsx` |
-| LSLUSL File | LSL/USL specification values | `LSLUSL.xlsx` |
+**Output:** `Form_measurement_result_{Operator}_{Date}.xlsx`
 
-**DK Files Expected:**
-- `DK1.5.xls`, `DK1.6.xls`, `DK1.7.xls`, `DK1.9.xls`
-- `DK2.1.xls`, `DK2.3.xls`, `DK2.4.xls`, `DK2.5.xls`
-- `DK CENTER.xls`
+### Tab 3: Calculate LSL USL
 
-**Processing Steps:**
-1. **Create Form Measurement File** - Copies template
-2. **Fill Impedance Data** - Reads TDR values from DK files
-3. **Fill Dimension Data** - Adds circuit width/thickness
-4. **Fill LSL/USL Data** - Applies specification limits
-5. **Add Cover Page** - Adds metadata
+**Input files:**
+| File | Description |
+|------|-------------|
+| Merged File | Combined measurement data (`merged_file.xlsx`) |
+| DCR File | Auto-selected from Tab 1 output |
 
-**Output:**
-- `Form_measurement_result_{Operator}_{Date}.xlsx`
-
-#### Tab 3: Calculate LSL USL
-
-This tab performs comprehensive statistical analysis.
-
-**Required Input Files:**
-
-| File Type | Description | Example |
-|-----------|-------------|---------|
-| Merged File | Combined measurement data | `merged_file.xlsx` |
-| DCR File | Output from Tab 1 (auto-selected) | Auto-detected |
-
-**Processing Steps:**
-1. **Read Merged Data** - Filters Method=3 data
-2. **Create Cal_merged Sheet** - Reorganizes by NET count
-3. **Create Sap xep Sheet** - Transposes data matrix
-4. **Create tinh LCLUCL Sheet** - Calculates all statistics
-5. **Create Calculate USL LSL Sheet** - Final summary with DCR data
-6. **Generate Plots** - Creates visualization PNG files
-7. **Add Cover Page** - Adds metadata
-
-**Statistical Formulas Used:**
-```
-Min = MIN(data_range)
-Max = MAX(data_range)
-Average = AVERAGE(data_range)
-Median = MEDIAN(data_range)
-Stdev = STDEV(data_range)
-IQR = QUARTILE(data, 3) - QUARTILE(data, 1)
-1stQ-4IQR = MAX(0, QUARTILE(data, 1) - 4×IQR)
-3rdQ+4IQR = QUARTILE(data, 3) + 4×IQR
-AverageIfs = AVERAGEIFS(data, ">1stQ-4IQR", "<3rdQ+4IQR")
-StdevIfs = STDEV of filtered data
-LSL = AverageIfs - 3×StdevIfs
-USL = AverageIfs + 3×StdevIfs
-```
-
-**Output:**
-- `Calculate_3Sigma_LSLUSL_final.xlsx`
-- `output/plots/` - PNG visualization files
-
-### Using Auto Execute All
-
-Click the **"Auto Execute All"** button to:
-1. Automatically switch between tabs
-2. Execute all three processing stages
-3. Generate all output files
-4. Create a comprehensive log file
-
-**Note:** Make sure all input files are selected before using this feature.
-
-### Understanding Output Files
-
-All outputs are saved in the `output/` directory:
-
-```
-output/
-├── DCR_format_yamaha_{Operator}_{Date}.xlsx
-├── Form_measurement_result_{Operator}_{Date}.xlsx
-├── Calculate_3Sigma_LSLUSL_final.xlsx
-├── log_{Operator}_{Date}.dat
-└── plots/
-    ├── TDR_BoxPlot_{timestamp}.png
-    ├── Dimension_BarChart_{timestamp}.png
-    ├── LSLUSL_Control_{timestamp}.png
-    └── LSLUSL_Histogram_NET{n}_{timestamp}.png
-```
-
-### Configuration File (files.json)
-
-The application remembers your file selections:
-
-```json
-{
-    "net_file": "path/to/file.NET",
-    "xlsx_file": "path/to/vendorspec.xlsx",
-    "partpin_file": "path/to/partpin.xlsx",
-    "etching_directory": "path/to/etching/",
-    "dimension_file": "path/to/dimension.xlsx",
-    "lslusl_file": "path/to/LSLUSL.xlsx",
-    "merged_file": "path/to/merged_file.xlsx",
-    "operator": "Your Name"
-}
-```
+**Output:** `Calculate_3Sigma_LSLUSL_final.xlsx`
 
 ---
 
-## Program Architecture
+## Output Structure
 
-### High-Level Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      main.py (Entry Point)                  │
-└─────────────────────────┬───────────────────────────────────┘
-                          │
-┌─────────────────────────▼───────────────────────────────────┐
-│                   ui/main_window.py                         │
-│  ┌─────────────┬─────────────┬─────────────┬──────────────┐ │
-│  │   Tab 1     │   Tab 2     │   Tab 3     │ Auto Execute │ │
-│  │ DCR Format  │Form Measure │ LSL/USL Calc│    All       │ │
-│  └──────┬──────┴──────┬──────┴──────┬──────┴──────────────┘ │
-└─────────┼─────────────┼─────────────┼───────────────────────┘
-          │             │             │
-┌─────────▼─────────────▼─────────────▼───────────────────────┐
-│                    logic/ (Business Logic)                  │
-│  ┌────────────────┐ ┌────────────────┐ ┌──────────────────┐ │
-│  │ makevendor.py  │ │make_form_      │ │calculate_lsl_   │ │
-│  │ make_de_req... │ │measurement.py  │ │usl.py           │ │
-│  │ make_input_... │ │                │ │                  │ │
-│  │ make_int_med.. │ │                │ │                  │ │
-│  │ make_judge_... │ │                │ │                  │ │
-│  │ make_dcr.py    │ │                │ │                  │ │
-│  └────────────────┘ └────────────────┘ └──────────────────┘ │
-│  ┌────────────────┐ ┌────────────────┐ ┌──────────────────┐ │
-│  │ file_reader.py │ │ cover_page.py  │ │ visualizer.py    │ │
-│  │config_manager  │ │                │ │ (matplotlib)     │ │
-│  └────────────────┘ └────────────────┘ └──────────────────┘ │
-└─────────────────────────────────────────────────────────────┘
-          │
-┌─────────▼───────────────────────────────────────────────────┐
-│              External Libraries (Dependencies)              │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────────────┐  │
-│  │ PySide6  │ │ openpyxl │ │ pandas   │ │ matplotlib     │  │
-│  │ (Qt GUI) │ │ (Excel)  │ │ (Data)   │ │ (Plots)        │  │
-│  └──────────┘ └──────────┘ └──────────┘ └────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Module Descriptions
-
-#### Entry Point
-| File | Description |
-|------|-------------|
-| `main.py` | Application entry point, initializes QApplication and MainWindow |
-
-#### UI Layer (`ui/`)
-| File | Description |
-|------|-------------|
-| `main_window.py` | Main GUI window with tabs, buttons, and event handlers |
-
-#### Logic Layer (`logic/`)
-| File | Description | Lines |
-|------|-------------|-------|
-| `makevendor.py` | Copies vendor specification sheet | ~100 |
-| `make_de_requirement.py` | Creates DE requirement from partpin data | ~200 |
-| `make_input_check_pin.py` | Builds input check pin structure | ~300 |
-| `make_int_med.py` | Processes NET file for 4W groups | ~200 |
-| `make_judge_check_pin.py` | Creates judgment formulas | ~150 |
-| `make_dcr.py` | Generates final DCR sheet | ~250 |
-| `make_form_measurement.py` | Processes form measurement data | ~400 |
-| `calculate_lsl_usl.py` | Statistical calculations | ~500 |
-| `file_reader.py` | Reads NET and Excel files | ~100 |
-| `config_manager.py` | Saves/loads JSON configuration | ~50 |
-| `cover_page.py` | Adds cover page metadata | ~100 |
-| `visualizer.py` | Generates matplotlib plots | ~200 |
-
-### Data Flow
+All output files are saved in a single organized folder:
 
 ```
-Input Files                    Processing                      Output Files
-────────────                   ──────────                      ────────────
-
-┌──────────┐                                              ┌──────────────────┐
-│ .NET     │──┐                                           │DCR_format_yamaha_│
-│ file     │  │    ┌─────────────────────────────┐        │{Op}_{Date}.xlsx  │
-└──────────┘  ├───►│                             │───────►└──────────────────┘
-┌──────────┐  │    │        Tab 1 Logic          │
-│vendorspec│──┤    │    (7 sequential steps)     │        ┌──────────────────┐
-│ .xlsx    │  │    │                             │        │  int_med.xlsx    │
-└──────────┘  │    └─────────────────────────────┘        └──────────────────┘
-┌──────────┐  │
-│ partpin  │──┘
-│ .xlsx    │
-└──────────┘
-
-┌──────────┐                                              ┌──────────────────┐
-│DK*.xls   │──┐                                           │Form_measurement_ │
-│(multiple)│  │    ┌─────────────────────────────┐        │result_{Op}_{D}.  │
-└──────────┘  ├───►│                             │───────►│xlsx              │
-┌──────────┐  │    │        Tab 2 Logic          │        └──────────────────┘
-│dimension │──┤    │    (4 sequential steps)     │
-│ .xlsx    │  │    │                             │        ┌──────────────────┐
-└──────────┘  │    └─────────────────────────────┘        │ plots/*.png      │
-┌──────────┐  │                                           └──────────────────┘
-│ LSLUSL   │──┘
-│ .xlsx    │
-└──────────┘
-
-┌──────────┐                                              ┌──────────────────┐
-│merged_   │──┐                                           │Calculate_3Sigma_ │
-│file.xlsx │  │    ┌─────────────────────────────┐        │LSLUSL_final.xlsx │
-└──────────┘  ├───►│                             │───────►└──────────────────┘
-┌──────────┐  │    │        Tab 3 Logic          │
-│DCR output│──┘    │  (statistical analysis)     │        ┌──────────────────┐
-│(from T1) │       │                             │        │ plots/*.png      │
-└──────────┘       └─────────────────────────────┘        └──────────────────┘
+{Output Directory}/
+  {ItemName}_{ItemCode}/
+    DCR_format_yamaha_{Operator}_{Date}.xlsx
+    Form_measurement_result_{Operator}_{Date}.xlsx
+    Calculate_3Sigma_LSLUSL_final.xlsx
+    log_{Operator}_{Date}.dat
+    plots/
+      DCR_VendorSpec_{Operator}_{Date}.png
+      DCR_PartDist_{Operator}_{Date}.png
+      Form_TDR_BoxPlot_{Operator}_{Date}.png
+      Form_TDR_Violin_{Operator}_{Date}.png
+      LSLUSL_Control_{Operator}_{Date}.png
+      LSLUSL_Cpk_{Operator}_{Date}.png
+      ... (and more)
 ```
 
 ---
@@ -439,183 +231,437 @@ Input Files                    Processing                      Output Files
 
 ```
 0105python/
-│
-├── main.py                    # Application entry point
-├── build_exe.py               # PyInstaller build script
-├── pyproject.toml             # Project dependencies
-├── files.json                 # User configuration
-│
-├── ui/                        # User Interface
-│   ├── __init__.py
-│   └── main_window.py         # Main window implementation
-│
-├── logic/                     # Business Logic
-│   ├── __init__.py
-│   ├── makevendor.py          # Vendor sheet creation
-│   ├── make_de_requirement.py # DE requirement processing
-│   ├── make_input_check_pin.py# Input check pin creation
-│   ├── make_int_med.py        # Intermediate file creation
-│   ├── make_judge_check_pin.py# Judge sheet creation
-│   ├── make_dcr.py            # DCR sheet creation
-│   ├── make_form_measurement.py# Form measurement processing
-│   ├── calculate_lsl_usl.py   # LSL/USL calculations
-│   ├── file_reader.py         # File reading utilities
-│   ├── config_manager.py      # Configuration management
-│   ├── cover_page.py          # Cover page generation
-│   └── visualizer.py          # Plot generation
-│
-├── output/                    # Generated output files
-│   ├── *.xlsx                 # Excel outputs
-│   ├── *.dat                  # Log files
-│   └── plots/                 # PNG visualizations
-│
-├── dist/                      # Built executable
-│   └── DCR_Converter.exe
-│
-├── 301_3sigma CAL/            # Sample input files
-│   ├── etching/               # DK files directory
-│   ├── *.xlsx                 # Reference Excel files
-│   └── *.NET                  # Network files
-│
-└── Form measurement result files_form.xlsx  # Template file
+  main.py                 # Entry point
+  pyproject.toml          # Dependencies
+  build_exe.py            # EXE build script
+  Form measurement result files_form.xlsx  # Template
+  DCR format base new form - yamaha.xlsx   # DCR template
+  int_med.xlsx            # Intermediate template
+  ui/
+    __init__.py
+    main_window.py        # Main window UI (PySide6)
+  logic/
+    __init__.py
+    config_manager.py     # Config save/load (JSON)
+    file_reader.py        # NET/XLSX file readers
+    makevendor.py         # Vendor sheet generation
+    make_de_requirement.py
+    make_input_check_pin.py
+    make_int_med.py
+    make_judge_check_pin.py
+    make_dcr.py
+    make_form_measurement.py  # Form measurement + etching
+    calculate_lsl_usl.py      # 3-sigma calculation
+    cover_page.py             # Cover page generation
+    visualizer.py             # Chart generation (matplotlib)
+  data/
+    files.json            # Default config
 ```
-
----
-
-## Input/Output File Specifications
-
-### Input File Formats
-
-#### .NET File Format
-```
-#CONT
-...continuity data...
-%END
-
-#4W
-#Gr01
-EXR4W 1,2,2049,2050
-EXR4W 3,4,2051,2052
-...
-%END
-```
-
-#### DK Excel File (Form kq sheet)
-| Column | Content |
-|--------|---------|
-| STT | Sequence number |
-| TDR | TDR measurement value |
-| ... | Other measurements |
-
-### Output File Formats
-
-#### DCR_format_yamaha.xlsx Sheets
-1. **Cover Page** - Metadata
-2. **vendor** - Vendor specifications
-3. **DE requirement** - Design engineering requirements
-4. **input check pin interm** - Intermediate pin data
-5. **input check pin** - Final pin check data
-6. **Judge(check pin)** - Judgment results
-7. **DCR** - Final DCR format
-
-#### Calculate_3Sigma_LSLUSL.xlsx Sheets
-1. **Cover Page** - Metadata
-2. **merged_file** - Raw filtered data
-3. **Cal_merged** - Transposed data
-4. **Sap xep** - Reorganized data
-5. **tinh LCLUCL** - Statistical calculations
-6. **Calculate USL LSL** - Final summary
 
 ---
 
 ## Troubleshooting
 
-### Common Issues
+| Problem | Solution |
+|---------|----------|
+| "Please enter operator name" | Enter your name in the Operator Name field |
+| Template file not found | Place `Form measurement result files_form.xlsx` next to the executable |
+| No DK files found | Ensure DK files are named `DK*.xls` (e.g., `DK1.5.xls`) |
+| DCR file not found (Tab 3) | Execute Tab 1 first to generate the DCR file |
+| Plots not generated | Ensure matplotlib and scipy are installed |
+| Permission error on output | Check that the output directory is writable |
 
-#### 1. "Template file not found" Error
-**Cause:** The template file `Form measurement result files_form.xlsx` is missing.
+---
+---
 
-**Solution:**
-- For source: Ensure the template file is in the project root
-- For executable: Place the template in the same folder as the .exe
+# 日本語
 
-#### 2. Application Crashes on Startup
-**Cause:** Missing dependencies or corrupted installation.
+## 目次
 
-**Solution:**
-```bash
-# Reinstall dependencies
-uv sync --reinstall
-```
-
-#### 3. "Invalid column index" Error
-**Cause:** Excel file has too many columns (>16384).
-
-**Solution:** This usually indicates a data processing error. Check your merged_file.xlsx for issues.
-
-#### 4. Empty Output Files
-**Cause:** Input files may have unexpected format.
-
-**Solution:**
-- Verify input file formats match expected structure
-- Check the log file for detailed error messages
-
-#### 5. Japanese Characters Display Incorrectly
-**Cause:** Encoding issues with .NET files.
-
-**Solution:** The application uses `chardet` for auto-detection. Ensure files are saved in UTF-8 or Shift-JIS encoding.
-
-### Log File Location
-Check the log file in `output/log_{Operator}_{Date}.dat` for detailed processing information.
+1. [概要](#概要)
+2. [機能](#機能)
+3. [システム要件](#システム要件)
+4. [インストール](#インストール)
+5. [クイックスタート](#クイックスタート)
+6. [詳細ユーザーガイド](#詳細ユーザーガイド)
+7. [出力構造](#出力構造)
+8. [トラブルシューティング](#トラブルシューティング-1)
 
 ---
 
-## FAQ
+## 概要
 
-**Q: Can I run this on Mac or Linux?**
-A: The Python source code is cross-platform, but the GUI is optimized for Windows. PySide6 works on all platforms.
+**DCR Format Converter**は、住友電気工業の品質管理および測定データ処理ワークフロー向けに設計されたデスクトップアプリケーションです。以下の作業を自動化します：
 
-**Q: How long does processing take?**
-A: Tab 1 and 2 take a few seconds. Tab 3 can take 1-5 minutes depending on the size of merged_file.xlsx (can be 100,000+ rows).
+- NETファイルとExcelデータの標準DCRフォーマットへの変換
+- TDR/インピーダンス分析によるForm Measurement Resultデータの処理
+- 3シグマ LSL/USL（下限規格値/上限規格値）統計の計算
+- 統計的可視化チャート（PNG）の生成
 
-**Q: Can I customize the output format?**
-A: Yes, modify the files in the `logic/` directory. Each module handles specific output formatting.
+---
 
-**Q: What happens if I run without selecting all files?**
-A: The application will skip steps with missing inputs and continue with available data.
+## 機能
 
-**Q: How do I update the application?**
-A: Replace the `dist/DCR_Converter.exe` with the new version, or `git pull` for source updates.
+### 共通設定（ヘッダーエリア）
+| フィールド | 説明 |
+|-----------|------|
+| **Operator Name** | 作業者名（実行前に必須入力） |
+| **Item Name** | 製品アイテム名（例：`FPC`） |
+| **Item Code** | 製品アイテムコード（例：`7S3493`） |
+| **Output Directory** | 出力基本ディレクトリ（デフォルト：`{app_dir}/output/`） |
+| **出力フォルダプレビュー** | リアルタイムプレビュー表示：`{ItemName}_{ItemCode}` |
+| **Auto Execute All** | 3つのタブを順番に実行 |
+
+### Tab 1: Make DCR Format
+- `.NET`ファイル（ネットワークトポロジ）の解析
+- Excelからベンダー仕様を抽出
+- Vendor、DE Requirement、Input Check Pin、Judge、DCRシートを生成
+- カバーページ自動生成
+- 統計プロット生成
+
+### Tab 2: Make Form Measurement Result
+- **2つのエッチングモード：**
+  - **自動モード** — ディレクトリ内のすべてのDKファイルを自動スキャン
+  - **手動モード** — 個別のDKファイルを選択（1〜2件の結果がスペック外で、含める条件を選択したい場合に便利）
+- DKファイルからインピーダンス/TDRデータを入力
+- Dimensionデータの入力（回路幅/厚さ）
+- LSL/Center/USL仕様値の入力
+- 統計プロット生成
+
+### Tab 3: Calculate LSL USL
+- マージされた測定データからの3シグマ計算
+- Tab 1出力からのDCRファイル自動参照
+- 統計プロット生成（管理図、Cpk分析、合否比率、ヒストグラム）
+
+---
+
+## システム要件
+
+| 項目 | 要件 |
+|------|------|
+| OS | Windows 10 / 11 |
+| Python | 3.12 以上 |
+| RAM | 4 GB 以上 |
+| ディスプレイ | 1280 x 1024 以上 |
+
+---
+
+## インストール
+
+### 方法A：ソースから実行
+```bash
+git clone https://github.com/BogKim2/3sigmaversion1.git
+cd 3sigmaversion1
+
+# 依存関係のインストール
+pip install pyside6 openpyxl pandas matplotlib scipy xlrd chardet
+
+# アプリケーション実行
+python main.py
+```
+
+### 方法B：実行ファイルから実行
+- `DCR_Converter.exe`をダウンロード
+- テンプレートファイル `Form measurement result files_form.xlsx` を同じフォルダに配置
+- ダブルクリックで実行
+
+---
+
+## クイックスタート
+
+1. アプリケーションを**起動**
+2. **共通設定を入力：**
+   - **Operator Name**（作業者名）を入力
+   - **Item Name**と**Item Code**を入力（出力フォルダ名：`{ItemName}_{ItemCode}`）
+   - 必要に応じて**Output Directory**を選択
+3. **Tab 1** — NET、Vendorspec、Partpinファイルを選択し、**Execute**をクリック
+4. **Tab 2** — エッチングモード（自動/手動）を選択、DimensionおよびLSLUSLファイルを選択し、**Execute**をクリック
+5. **Tab 3** — Mergedファイルを選択し、**Execute**をクリック
+
+> **ヒント：** **Auto Execute All**ボタンで、ワンクリックで3つのタブを順番に実行できます。
+
+---
+
+## 詳細ユーザーガイド
+
+### 共通設定
+
+すべてのタブで共有される設定で、ウィンドウ上部に表示されます。
+
+- **Operator Name**：実行前に必須。出力ファイル名に使用されます。
+- **Item Name / Item Code**：出力サブフォルダ名の作成に使用。例：Item Name = `FPC`、Item Code = `7S3493`の場合、出力先は`FPC_7S3493/`。
+- **Output Directory**：**Browse**をクリックして出力基本ディレクトリを変更。
+
+### Tab 2: エッチングモードの選択
+
+| モード | 使用場面 |
+|--------|---------|
+| **自動（ディレクトリスキャン）** | 通常：ディレクトリ内のすべてのDKファイルを処理 |
+| **手動（ファイル選択）** | 一部の条件がスペック外で、有効なDKファイルのみ選択したい場合 |
+
+- **自動モード**：エッチングディレクトリを選択。`DK*.xls`に一致するすべてのファイルが処理されます。
+- **手動モード**：**Add Files**で個別のDKファイルを選択。**Remove Selected**や**Clear All**でリストを管理。
+
+---
+
+## 出力構造
+
+すべての出力ファイルは整理されたフォルダに保存されます：
+
+```
+{出力ディレクトリ}/
+  {ItemName}_{ItemCode}/
+    DCR_format_yamaha_{Operator}_{Date}.xlsx
+    Form_measurement_result_{Operator}_{Date}.xlsx
+    Calculate_3Sigma_LSLUSL_final.xlsx
+    log_{Operator}_{Date}.dat
+    plots/
+      DCR_VendorSpec_{Operator}_{Date}.png
+      Form_TDR_BoxPlot_{Operator}_{Date}.png
+      LSLUSL_Control_{Operator}_{Date}.png
+      ...（その他）
+```
+
+---
+
+## トラブルシューティング
+
+| 問題 | 解決方法 |
+|------|---------|
+| "Please enter operator name" | Operator Nameフィールドに名前を入力 |
+| テンプレートファイルが見つからない | `Form measurement result files_form.xlsx`を実行ファイルと同じ場所に配置 |
+| DKファイルが見つからない | DKファイル名が`DK*.xls`形式であることを確認 |
+| DCRファイルが見つからない（Tab 3） | 先にTab 1を実行してDCRファイルを生成 |
+
+---
+---
+
+# 한국어
+
+## 목차
+
+1. [개요](#개요)
+2. [기능](#기능-1)
+3. [시스템 요구사항](#시스템-요구사항)
+4. [설치 방법](#설치-방법)
+5. [빠른 시작 가이드](#빠른-시작-가이드)
+6. [상세 사용 가이드](#상세-사용-가이드)
+7. [출력 구조](#출력-구조)
+8. [문제 해결](#문제-해결)
+
+---
+
+## 개요
+
+**DCR Format Converter**는 스미토모 전기공업의 품질 관리 및 측정 데이터 처리 워크플로우를 위해 설계된 데스크톱 애플리케이션입니다. 다음 작업을 자동화합니다:
+
+- NET 파일 및 Excel 데이터를 표준 DCR 포맷으로 변환
+- TDR/임피던스 분석을 통한 Form Measurement Result 데이터 처리
+- 3시그마 LSL/USL (하한/상한 규격값) 통계 계산
+- 통계 시각화 차트 (PNG) 생성
+
+---
+
+## 기능
+
+### 공통 설정 (헤더 영역)
+| 필드 | 설명 |
+|------|------|
+| **Operator Name** | 작업자 이름 (실행 전 필수 입력) |
+| **Item Name** | 제품 아이템 이름 (예: `FPC`) |
+| **Item Code** | 제품 아이템 코드 (예: `7S3493`) |
+| **Output Directory** | 출력 기본 디렉토리 (기본값: `{app_dir}/output/`) |
+| **출력 폴더 미리보기** | 실시간 미리보기 표시: `{ItemName}_{ItemCode}` |
+| **Auto Execute All** | 3개 탭을 순차적으로 실행 |
+
+### Tab 1: Make DCR Format
+- `.NET` 파일 (네트워크 토폴로지) 파싱
+- Excel에서 벤더 스펙 추출
+- Vendor, DE Requirement, Input Check Pin, Judge, DCR 시트 생성
+- 커버 페이지 자동 생성
+- 통계 플롯 생성 (Vendor Spec, Spec Range, Part Distribution, Judge Results, DCR Analysis)
+
+### Tab 2: Make Form Measurement Result
+- **2가지 에칭 모드:**
+  - **자동 모드** — 디렉토리 내 모든 DK 파일을 자동 스캔
+  - **수동 모드** — 개별 DK 파일 선택 (일부 조건이 스펙 외일 때, 포함할 조건을 직접 선택 가능)
+- DK 파일에서 임피던스/TDR 데이터 입력
+- Dimension 데이터 입력 (회로 폭 / 두께)
+- LSL/Center/USL 규격값 입력
+- 통계 플롯 생성 (TDR Box Plot, Violin Plot, Dimension Trend, Distribution)
+
+### Tab 3: Calculate LSL USL
+- 병합된 측정 데이터에서 3시그마 계산
+- Tab 1 출력에서 DCR 파일 자동 참조
+- 통계 플롯 생성 (Control Chart, Cpk 분석, Pass/Fail 비율, 히스토그램)
+
+---
+
+## 시스템 요구사항
+
+| 항목 | 요구사항 |
+|------|---------|
+| OS | Windows 10 / 11 |
+| Python | 3.12 이상 |
+| RAM | 4 GB 이상 |
+| 디스플레이 | 1280 x 1024 이상 |
+
+### 의존성 패키지
+```
+PySide6 >= 6.10.1
+openpyxl >= 3.1.5
+pandas >= 2.3.3
+matplotlib >= 3.9.0
+scipy >= 1.11.0
+xlrd >= 2.0.2
+chardet >= 5.2.0
+```
+
+---
+
+## 설치 방법
+
+### 방법 A: 소스에서 실행
+```bash
+# 저장소 클론
+git clone https://github.com/BogKim2/3sigmaversion1.git
+cd 3sigmaversion1
+
+# 의존성 설치 (uv 또는 pip 사용)
+uv sync
+# 또는
+pip install pyside6 openpyxl pandas matplotlib scipy xlrd chardet
+
+# 애플리케이션 실행
+python main.py
+```
+
+### 방법 B: 실행 파일로 실행
+- `DCR_Converter.exe` 다운로드
+- 템플릿 파일 `Form measurement result files_form.xlsx`를 같은 폴더에 배치
+- 더블 클릭으로 실행
+
+---
+
+## 빠른 시작 가이드
+
+1. 애플리케이션 **실행** (`python main.py` 또는 `DCR_Converter.exe`)
+2. **공통 설정 입력:**
+   - **Operator Name** (작업자 이름) 입력
+   - **Item Name**과 **Item Code** 입력 (출력 폴더명: `{ItemName}_{ItemCode}`)
+   - 필요시 **Output Directory** 선택
+3. **Tab 1** — NET, Vendorspec, Partpin 파일 선택 후 **Execute** 클릭
+4. **Tab 2** — 에칭 모드(자동/수동) 선택, Dimension 및 LSLUSL 파일 선택 후 **Execute** 클릭
+5. **Tab 3** — Merged 파일 선택 후 **Execute** 클릭
+
+> **팁:** **Auto Execute All** 버튼으로 한 번에 3개 탭을 순차 실행할 수 있습니다.
+
+---
+
+## 상세 사용 가이드
+
+### 공통 설정
+
+모든 탭에서 공유되는 설정으로, 윈도우 상단에 표시됩니다.
+
+- **Operator Name**: 실행 전 필수 입력. 출력 파일명에 사용됩니다.
+- **Item Name / Item Code**: 출력 하위 폴더명 생성에 사용. 예: Item Name = `FPC`, Item Code = `7S3493`이면 출력 경로는 `FPC_7S3493/`.
+- **Output Directory**: **Browse** 클릭하여 출력 기본 디렉토리 변경 가능. 기본값은 `{app_dir}/output/`.
+
+### Tab 1: Make DCR Format
+
+**필요한 입력 파일:**
+| 파일 | 형식 | 설명 |
+|------|------|------|
+| NET File | `.NET` | 네트워크 토폴로지 파일 |
+| Vendorspec File | `.xlsx` | 벤더 스펙 데이터 |
+| Partpin File | `.xlsx` | 파트 & 핀 배정 데이터 |
+
+**실행 단계:**
+1. Vendor 시트 생성
+2. DE Requirement 시트 생성
+3. Input Check Pin 시트 생성
+4. int_med.xlsx 생성 (중간 파일)
+5. 최종 Input Check Pin 시트 생성
+6. Judge (check pin) 시트 생성
+7. DCR 시트 생성
+8. 커버 페이지 추가
+9. 통계 플롯 생성
+
+**출력:** `DCR_format_yamaha_{Operator}_{Date}.xlsx`
+
+### Tab 2: Make Form Measurement Result
+
+**에칭 파일 모드:**
+
+| 모드 | 사용 시점 |
+|------|----------|
+| **자동 (디렉토리 스캔)** | 일반적인 경우: 디렉토리 내 모든 DK 파일을 처리 |
+| **수동 (파일 선택)** | 일부 조건이 스펙 외일 때, 유효한 DK 파일만 선택하고 싶은 경우 |
+
+- **자동 모드**: 에칭 디렉토리를 선택합니다. `DK*.xls` 패턴에 맞는 모든 파일이 처리됩니다.
+- **수동 모드**: **Add Files**로 개별 DK 파일을 선택합니다. **Remove Selected** 또는 **Clear All**로 목록을 관리합니다.
+
+**추가 입력 파일:**
+| 파일 | 설명 |
+|------|------|
+| Dimension File | 단면 측정 데이터 (예: `7E3493-00003.xlsx`) |
+| Dimension Sheet | 드롭다운에서 사용할 시트 선택 |
+| LSLUSL File | LSL/Center/USL 규격값 |
+
+**출력:** `Form_measurement_result_{Operator}_{Date}.xlsx`
+
+### Tab 3: Calculate LSL USL
+
+**입력 파일:**
+| 파일 | 설명 |
+|------|------|
+| Merged File | 병합된 측정 데이터 (`merged_file.xlsx`) |
+| DCR File | Tab 1 출력에서 자동 선택 |
+
+**출력:** `Calculate_3Sigma_LSLUSL_final.xlsx`
+
+---
+
+## 출력 구조
+
+모든 출력 파일은 하나의 정리된 폴더에 저장됩니다:
+
+```
+{출력 디렉토리}/
+  {ItemName}_{ItemCode}/
+    DCR_format_yamaha_{Operator}_{Date}.xlsx
+    Form_measurement_result_{Operator}_{Date}.xlsx
+    Calculate_3Sigma_LSLUSL_final.xlsx
+    log_{Operator}_{Date}.dat
+    plots/
+      DCR_VendorSpec_{Operator}_{Date}.png
+      DCR_PartDist_{Operator}_{Date}.png
+      Form_TDR_BoxPlot_{Operator}_{Date}.png
+      Form_TDR_Violin_{Operator}_{Date}.png
+      LSLUSL_Control_{Operator}_{Date}.png
+      LSLUSL_Cpk_{Operator}_{Date}.png
+      ... (기타)
+```
+
+---
+
+## 문제 해결
+
+| 문제 | 해결 방법 |
+|------|----------|
+| "Please enter operator name" 메시지 | Operator Name 필드에 이름 입력 |
+| 템플릿 파일을 찾을 수 없음 | `Form measurement result files_form.xlsx`를 실행 파일과 같은 위치에 배치 |
+| DK 파일을 찾을 수 없음 | DK 파일명이 `DK*.xls` 형식인지 확인 (예: `DK1.5.xls`) |
+| DCR 파일을 찾을 수 없음 (Tab 3) | Tab 1을 먼저 실행하여 DCR 파일 생성 |
+| 플롯이 생성되지 않음 | matplotlib과 scipy가 설치되어 있는지 확인 |
+| 출력 디렉토리 권한 오류 | 출력 디렉토리에 쓰기 권한이 있는지 확인 |
 
 ---
 
 ## License & Credits
 
-### Credits
-
-- **Developer:** Sangwoo Kim
-- **AI Assistance:** Claude Opus 4.5 (Anthropic), Gemini (Google)
-- **Company:** Sumitomo Electric Industries, Ltd.
-- **Version:** 1.0
-
-### Dependencies
-
-| Library | Version | License |
-|---------|---------|---------|
-| PySide6 | 6.10.1+ | LGPL |
-| openpyxl | 3.1.5+ | MIT |
-| pandas | 2.3.3+ | BSD |
-| matplotlib | 3.9.0+ | PSF |
-| xlrd | 2.0.2+ | BSD |
-| chardet | 5.2.0+ | LGPL |
-| PyInstaller | 6.17.0+ | GPL |
-
-### Contact
-
-For bug reports or feature requests, please contact the development team.
-
----
-
-<p align="center">
-  <em>© 2026 Sumitomo Electric Industries, Ltd. All rights reserved.</em>
-</p>
+- **Version**: 1.1
+- **Programmer**: Sangwoo Kim
+- **Organization**: Sumitomo Electric Industries
+- **Acknowledgments**: Lots of help from Opus4.5 and Gemini

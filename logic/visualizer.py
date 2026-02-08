@@ -21,8 +21,16 @@ from openpyxl import load_workbook
 
 
 # 공통 경로 유틸
-def _get_plots_dir() -> str:
-    base = os.path.join(get_app_dir(), "output", "plots")
+def _get_plots_dir(output_dir: str = "") -> str:
+    """
+    플롯 저장 디렉토리 반환
+    Args:
+        output_dir: 외부에서 지정한 출력 디렉토리. 비어있으면 기본 경로 사용.
+    """
+    if output_dir:
+        base = os.path.join(output_dir, "plots")
+    else:
+        base = os.path.join(get_app_dir(), "output", "plots")
     os.makedirs(base, exist_ok=True)
     return base
 
@@ -49,6 +57,7 @@ def _setup_style():
 def save_dcr_plots_from_file(
     output_file: str,
     operator: str = "",
+    output_dir: str = "",
 ) -> List[str]:
     """
     DCR Format 결과 파일에서 통계 플롯 생성
@@ -56,12 +65,13 @@ def save_dcr_plots_from_file(
     Args:
         output_file: 생성된 DCR_format_yamaha 파일 경로
         operator: 작업자 이름
+        output_dir: 외부에서 지정한 출력 디렉토리
     Returns:
         저장된 파일 경로 리스트
     """
     _setup_style()
     saved_paths = []
-    plots_dir = _get_plots_dir()
+    plots_dir = _get_plots_dir(output_dir)
     label = _timestamp_label(operator)
 
     if not os.path.exists(output_file):
@@ -345,6 +355,7 @@ def save_form_plots_from_workbook(
     tdr_map: Dict[str, List[float]],
     dim_map: Dict[str, Tuple[float, float]],
     operator: str = "",
+    output_dir: str = "",
 ) -> List[str]:
     """
     Form Measurement 결과에서 추출한 TDR/치수 데이터를 시각화하여 PNG 저장
@@ -352,12 +363,13 @@ def save_form_plots_from_workbook(
     Args:
         tdr_map: {inner: [tdr values...]}
         dim_map: {inner: (width_avg, thickness_avg)}
+        output_dir: 외부에서 지정한 출력 디렉토리
     Returns:
         저장된 파일 경로 리스트
     """
     _setup_style()
     saved_paths = []
-    plots_dir = _get_plots_dir()
+    plots_dir = _get_plots_dir(output_dir)
     label = _timestamp_label(operator)
 
     # 1) TDR Box Plot
@@ -553,6 +565,7 @@ def save_lslusl_plots_from_data(
     usl_values: List[float],
     operator: str = "",
     top_k: int = 5,
+    output_dir: str = "",
 ) -> List[str]:
     """
     LSL/USL 계산 결과를 시각화하여 PNG 저장
@@ -561,12 +574,13 @@ def save_lslusl_plots_from_data(
         data_df: pandas DataFrame (rows=NET, cols=측정값)
         lsl_values/usl_values: 각 NET별 LSL/USL 값 (길이 = NET 수)
         top_k: 표준편차 기준 상위 NET 개수
+        output_dir: 외부에서 지정한 출력 디렉토리
     Returns:
         저장된 파일 경로 리스트
     """
     _setup_style()
     saved_paths = []
-    plots_dir = _get_plots_dir()
+    plots_dir = _get_plots_dir(output_dir)
     label = _timestamp_label(operator)
 
     if not isinstance(data_df, pd.DataFrame) or data_df.empty:
