@@ -14,19 +14,29 @@ import sys
 import re
 import pandas as pd
 
+from logic.visualizer import save_form_plots_from_workbook
+
 
 def get_template_path() -> str:
     """
-    템플릿 파일 경로 반환
+    템플릿 파일 경로 반환 (PyInstaller 지원)
     """
     if getattr(sys, 'frozen', False):
-        # exe 실행 시
-        app_dir = os.path.dirname(sys.executable)
+        # exe 실행 시: PyInstaller가 파일을 추출하는 임시 디렉토리(_MEIPASS) 확인
+        # 만약 번들링하지 않고 exe와 같은 위치에 두는 경우를 위해 executable 경로도 확인
+        base_path = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
     else:
         # 개발 중
-        app_dir = os.path.dirname(os.path.dirname(__file__))
+        base_path = os.path.dirname(os.path.dirname(__file__))
     
-    return os.path.join(app_dir, "Form measurement result files_form.xlsx")
+    template_name = "Form measurement result files_form.xlsx"
+    template_path = os.path.join(base_path, template_name)
+    
+    # 만약 _MEIPASS에서 못 찾으면 exe 실행 위치에서 다시 확인
+    if getattr(sys, 'frozen', False) and not os.path.exists(template_path):
+        template_path = os.path.join(os.path.dirname(sys.executable), template_name)
+        
+    return template_path
 
 
 def create_form_measurement_file(output_path: str) -> str:
@@ -239,6 +249,8 @@ def fill_impedance_data(output_path: str, etching_dir: str) -> str:
         
         # 각 DK 파일 처리
         processed = 0
+        # 시각화를 위한 TDR 모음
+        tdr_map = {}
         for inner_val, file_path in dk_files:
             tdr_data = read_tdr_data_from_dk_file(file_path)
             
@@ -254,6 +266,8 @@ def fill_impedance_data(output_path: str, etching_dir: str) -> str:
                 for idx, val in enumerate(tdr_data):
                     col = 5 + idx  # E=5, F=6, ...
                     ws.cell(row=target_row, column=col, value=val)
+                # 시각화용 저장
+                tdr_map[inner_val] = tdr_data
                 
                 # 각 Inner 그룹의 4개 행 모두에 수식 추가
                 # Row: Impedance NET resistance (target_row)
@@ -311,7 +325,8 @@ def fill_impedance_data(output_path: str, etching_dir: str) -> str:
         
         result_msg = f"Success: Filled Impedance data from {processed} DK files\n"
         result_msg += "Debug:\n  " + "\n  ".join(debug_info)
-        return result_msg
+        # 결과 메시지와 시각화 데이터 반환을 위해 dict 형태로 래핑
+        return {"message": result_msg, "tdr_map": tdr_map}
         
     except Exception as e:
         import traceback
@@ -400,6 +415,7 @@ def fill_dimension_data(output_path: str, dimension_file: str, sheet_name: str =
         data_end_row = 43
         
         processed = 0
+        dim_map = {}
         
         for inner_val, bottom_col in dk_sections.items():
             # 해당 Inner의 시작 행 찾기
@@ -443,6 +459,14 @@ def fill_dimension_data(output_path: str, dimension_file: str, sheet_name: str =
             
             processed += 1
             debug_info.append(f"Inner {inner_val}: filled width/thickness/minimum data")
+
+            # 시각화용 평균값 저장
+            valid_widths = [v for v in circuit_width_data if v is not None]
+            valid_thicks = [v for v in thickness_data if v is not None]
+            width_avg = float(pd.Series(valid_widths).mean()) if valid_widths else None
+            thick_avg = float(pd.Series(valid_thicks).mean()) if valid_thicks else None
+            if width_avg is not None and thick_avg is not None:
+                dim_map[inner_val] = (width_avg, thick_avg)
         
         # 파일 저장
         wb.save(output_path)
@@ -450,7 +474,7 @@ def fill_dimension_data(output_path: str, dimension_file: str, sheet_name: str =
         
         result_msg = f"Success: Filled dimension data from {processed} DK sections\n"
         result_msg += "Debug:\n  " + "\n  ".join(debug_info)
-        return result_msg
+        return {"message": result_msg, "dim_map": dim_map}
         
     except Exception as e:
         import traceback

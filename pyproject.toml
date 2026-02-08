@@ -11,4 +11,6 @@ dependencies = [
     "pyinstaller>=6.17.0",
     "pyside6>=6.10.1",
     "xlrd>=2.0.2",
+    "matplotlib>=3.9.0",
+    "scipy>=1.11.0",
 ]

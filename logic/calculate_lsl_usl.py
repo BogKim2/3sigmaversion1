@@ -10,6 +10,8 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 import os
 
+from logic.visualizer import save_lslusl_plots_from_data
+
 
 def convert_to_number_if_possible(val):
     """
@@ -288,7 +290,7 @@ def calculate_lsl_usl(merged_file: str, dcr_file: str, output_file: str) -> str:
         return f"Error: {str(e)}\n{traceback.format_exc()}"
 
 
-def calculate_lsl_usl_full(merged_file: str, dcr_file: str, output_file: str) -> str:
+def calculate_lsl_usl_full(merged_file: str, dcr_file: str, output_file: str, operator: str = "") -> str:
     """
     merged_file의 모든 데이터를 처리하여 통계 계산
     
@@ -992,6 +994,47 @@ def calculate_lsl_usl_full(merged_file: str, dcr_file: str, output_file: str) ->
         result += f"Sheet 'Calculate USL LSL': DCR data with calculated ERS values\n"
         result += f"Updated DCR_format_yamaha.xlsx: 3 sigma spec & On machine columns\n"
         result += "Debug:\n  " + "\n  ".join(debug_info)
+        # ============================================
+        # Visualization (Top NETs + Control 스타일)
+        # ============================================
+        try:
+            # NET별 데이터프레임 구성 (행=NET, 열=측정값)
+            data_by_net = []
+            for net_idx in range(x):
+                net_rows = data_df.iloc[net_idx::x, :]
+                flat_vals = []
+                for col in range(net_rows.shape[1]):
+                    col_vals = net_rows.iloc[:, col].tolist()
+                    for v in col_vals:
+                        cv = convert_to_number_if_possible(v)
+                        if cv is not None and not (isinstance(cv, float) and np.isnan(cv)):
+                            flat_vals.append(cv)
+                data_by_net.append(flat_vals)
+
+            data_by_net_df = pd.DataFrame(data_by_net)
+
+            # Python 기준 LSL/USL 계산
+            lsl_list = []
+            usl_list = []
+            for vals in data_by_net:
+                series = pd.Series([v for v in vals if pd.notna(v)])
+                avg = series.mean() if not series.empty else None
+                std = series.std() if not series.empty else None
+                if avg is None or std is None:
+                    lsl_list.append(None)
+                    usl_list.append(None)
+                else:
+                    lsl = max(0, avg - 3 * std)
+                    usl = avg + 3 * std
+                    lsl_list.append(lsl)
+                    usl_list.append(usl)
+
+            plots = save_lslusl_plots_from_data(data_by_net_df, lsl_list, usl_list, operator)
+            for p in plots:
+                debug_info.append(f"Plot saved: {p}")
+        except Exception as e:
+            debug_info.append(f"Warning: Plot generation failed - {str(e)}")
+
         return result
         
     except Exception as e:

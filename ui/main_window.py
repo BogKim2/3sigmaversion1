@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QTabWidget, QPushButton, QLineEdit, QTextEdit,
     QLabel, QFileDialog, QGroupBox, QInputDialog, QMessageBox,
-    QFrame, QSizePolicy, QApplication
+    QFrame, QSizePolicy, QApplication, QComboBox
 )
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont, QColor, QPalette, QPixmap
@@ -23,6 +23,7 @@ from logic.make_int_med import make_int_med_file, make_input_check_pin_final
 from logic.make_judge_check_pin import make_judge_check_pin_sheet
 from logic.make_dcr import make_dcr_sheet
 from logic.make_form_measurement import create_form_measurement_file, fill_impedance_data, fill_dimension_data, fill_lslusl_data
+from logic.visualizer import save_dcr_plots_from_file, save_form_plots_from_workbook, save_lslusl_plots_from_data
 from logic.calculate_lsl_usl import calculate_lsl_usl_full
 from logic.config_manager import save_file_paths, load_file_paths
 
@@ -302,8 +303,11 @@ class MainWindow(QMainWindow):
     def _save_log_file(self, log_content: str, tab_name: str = ""):
         """로그를 파일로 저장 (output 폴더 내 plain ASCII .dat 파일)"""
         try:
-            # output 폴더 생성
-            output_dir = os.path.join(os.getcwd(), "output")
+            # 애플리케이션 실행 디렉토리 기준
+            from logic.config_manager import get_app_dir
+            app_dir = get_app_dir()
+            output_dir = os.path.join(app_dir, "output")
+            
             if not os.path.exists(output_dir):
                 os.makedirs(output_dir)
                 
@@ -340,8 +344,11 @@ class MainWindow(QMainWindow):
             extension: 확장자
             suffix_type: "operator_date" (Operator_날짜), "final" (_final만), "none" (접미사 없음)
         """
-        # output 폴더 생성
-        output_dir = os.path.join(os.getcwd(), "output")
+        # 애플리케이션 실행 디렉토리 기준
+        from logic.config_manager import get_app_dir
+        app_dir = get_app_dir()
+        output_dir = os.path.join(app_dir, "output")
+        
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
             
@@ -441,18 +448,27 @@ class MainWindow(QMainWindow):
         content_layout.setContentsMargins(16, 16, 16, 16)
         content_layout.setSpacing(12)
         
-        # Auto Execute 버튼 (탭 위에 배치)
-        auto_execute_layout = QHBoxLayout()
-        auto_execute_layout.addStretch()
+        # Operator 입력 영역 (탭 위에 배치하여 모든 탭에서 공통으로 사용)
+        operator_layout = QHBoxLayout()
+        operator_label = QLabel("Operator Name:")
+        operator_label.setFixedWidth(120)
+        operator_label.setStyleSheet("font-weight: bold; color: #1976D2;")
+        self.operator_input = QLineEdit()
+        self.operator_input.setPlaceholderText("Enter your name...")
+        self.operator_input.setText(self.operator_name)
+        self.operator_input.textChanged.connect(self._on_operator_changed)
+        operator_layout.addWidget(operator_label)
+        operator_layout.addWidget(self.operator_input)
+        operator_layout.addSpacing(20)
         
+        # Auto Execute 버튼 (탭 위에 배치)
         self.auto_execute_btn = QPushButton("Auto Execute All")
         self.auto_execute_btn.setObjectName("auto_execute_btn")
         self.auto_execute_btn.setToolTip("Executes all tabs sequentially (Tab1 → Tab2 → Tab3).\nThis may take several minutes. Please wait patiently.")
         self.auto_execute_btn.clicked.connect(self._auto_execute_all)
-        auto_execute_layout.addWidget(self.auto_execute_btn)
+        operator_layout.addWidget(self.auto_execute_btn)
         
-        auto_execute_layout.addStretch()
-        content_layout.addLayout(auto_execute_layout)
+        content_layout.addLayout(operator_layout)
         
         # 탭 위젯 생성
         self.tab_widget = QTabWidget()
@@ -468,27 +484,12 @@ class MainWindow(QMainWindow):
         
         # 세 번째 탭: calculate LSL USL
         self._create_lsl_usl_tab()
-    
+
     def _create_dcr_tab(self):
         """make DCR format 탭 생성"""
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setSpacing(12)
-        
-        # Operator 입력 그룹박스
-        operator_group = QGroupBox("Operator Information")
-        operator_layout = QHBoxLayout(operator_group)
-        
-        operator_label = QLabel("Operator Name:")
-        operator_label.setFixedWidth(120)
-        self.operator_input = QLineEdit()
-        self.operator_input.setPlaceholderText("Enter your name...")
-        self.operator_input.setText(self.operator_name)
-        self.operator_input.textChanged.connect(self._on_operator_changed)
-        
-        operator_layout.addWidget(operator_label)
-        operator_layout.addWidget(self.operator_input)
-        layout.addWidget(operator_group)
         
         # 파일 선택 그룹박스
         file_group = QGroupBox("Input Files")
@@ -544,22 +545,18 @@ class MainWindow(QMainWindow):
         
         layout.addWidget(file_group)
         
-        # 출력 파일 그룹박스
-        output_file_group = QGroupBox("Output File")
+        # 출력 파일 그룹박스 (UI에는 정보를 표시하지만 사용자가 직접 수정하지 않도록 read-only로 설정 가능)
+        output_file_group = QGroupBox("Output Settings")
         output_file_layout = QHBoxLayout(output_file_group)
         
-        outfile_label = QLabel("Output File:")
+        outfile_label = QLabel("Output Info:")
         outfile_label.setFixedWidth(120)
-        self.outfile_path_edit = QLineEdit()
-        self.outfile_path_edit.setText(self.outfile_path)
-        self.outfile_path_edit.setPlaceholderText("DCR_format_yamaha.xlsx")
-        outfile_browse_btn = QPushButton("Browse")
-        outfile_browse_btn.setObjectName("browse_btn")
-        outfile_browse_btn.clicked.connect(self._browse_outfile)
+        self.outfile_info_label = QLabel("Filename will be auto-generated: DCR_format_yamaha_{Operator}_{Date}.xlsx")
+        self.outfile_info_label.setStyleSheet("color: #666666; font-style: italic;")
         
         output_file_layout.addWidget(outfile_label)
-        output_file_layout.addWidget(self.outfile_path_edit)
-        output_file_layout.addWidget(outfile_browse_btn)
+        output_file_layout.addWidget(self.outfile_info_label)
+        output_file_layout.addStretch()
         
         layout.addWidget(output_file_group)
         
@@ -610,15 +607,27 @@ class MainWindow(QMainWindow):
             self.xlsx_path_edit.setText(self.xlsx_file_path)
         if self.partpin_file_path:
             self.partpin_path_edit.setText(self.partpin_file_path)
-        if self.outfile_path:
-            self.outfile_path_edit.setText(self.outfile_path)
+        # Tab 1의 outfile_path_edit가 제거되었으므로 관련 코드 삭제 또는 수정
+        
         # Form Measurement 탭 경로 로드
         if self.etching_dir_path:
             self.etching_dir_edit.setText(self.etching_dir_path)
-        if self.form_outfile_path:
-            self.form_out_path_edit.setText(self.form_outfile_path)
+        # form_out_path_edit 제거됨
         if self.dimension_file_path:
             self.dimension_file_edit.setText(self.dimension_file_path)
+            # 시트 목록 로드
+            try:
+                xl = pd.ExcelFile(self.dimension_file_path)
+                sheet_names = xl.sheet_names
+                xl.close()
+                self.dimension_sheet_combo.blockSignals(True)
+                self.dimension_sheet_combo.clear()
+                self.dimension_sheet_combo.addItems(sheet_names)
+                if self.dimension_sheet_name and self.dimension_sheet_name in sheet_names:
+                    self.dimension_sheet_combo.setCurrentText(self.dimension_sheet_name)
+                self.dimension_sheet_combo.blockSignals(False)
+            except Exception:
+                pass
         if self.lslusl_file_path:
             self.lslusl_file_edit.setText(self.lslusl_file_path)
     
@@ -628,9 +637,9 @@ class MainWindow(QMainWindow):
             self.net_file_path,
             self.xlsx_file_path,
             self.partpin_file_path,
-            self.outfile_path_edit.text() or "DCR_format_yamaha.xlsx",
+            "DCR_format_yamaha.xlsx", # 기본 파일명 사용
             self.etching_dir_edit.text() if hasattr(self, 'etching_dir_edit') else "",
-            self.form_out_path_edit.text() if hasattr(self, 'form_out_path_edit') else "Form_measurement_result.xlsx",
+            "Form_measurement_result.xlsx", # 기본 파일명 사용
             self.dimension_file_edit.text() if hasattr(self, 'dimension_file_edit') else "",
             self.dimension_sheet_name if hasattr(self, 'dimension_sheet_name') else "",
             self.lslusl_file_edit.text() if hasattr(self, 'lslusl_file_edit') else "",
@@ -678,17 +687,8 @@ class MainWindow(QMainWindow):
             self._save_config()
     
     def _browse_outfile(self):
-        """출력 파일 저장 위치 선택 다이얼로그 (outfile)"""
-        file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Save Output File (outfile)",
-            "DCR_format_yamaha.xlsx",
-            "Excel Files (*.xlsx);;All Files (*.*)"
-        )
-        if file_path:
-            self.outfile_path = file_path
-            self.outfile_path_edit.setText(file_path)
-            self._save_config()
+        """출력 파일 저장 위치 선택 다이얼로그 (더 이상 사용되지 않음)"""
+        pass
     
     def _print_files(self):
         """선택된 파일들의 내용을 텍스트박스에 출력"""
@@ -741,24 +741,20 @@ class MainWindow(QMainWindow):
             self._log_progress("[ XLSX FILE (partpin) ] - No file selected")
             self._log_progress("")
         
-        # 출력 파일 경로 표시
-        current_outfile = self.outfile_path_edit.text()
+        # 출력 파일 정보 표시
         self._log_progress("=" * 60)
-        self._log_progress("[ OUTPUT FILE (outfile) ]")
+        self._log_progress("[ OUTPUT INFO ]")
         self._log_progress("=" * 60)
-        self._log_progress(f"Output Path: {current_outfile if current_outfile else 'DCR_format_yamaha.xlsx'}")
+        self._log_progress("Output files will be automatically generated in the 'output/' directory.")
+        self._log_progress("Naming rule: {OriginalName}_{Operator}_{Date}.xlsx")
     
     def _execute(self, for_auto_execute=False):
         """Execute 버튼 클릭 - 모든 시트 순차적 생성"""
         if not for_auto_execute:
             self._clear_progress()
         
-        # 출력 파일 경로 가져오기 (Operator 이름과 날짜 추가)
-        base_outfile = self.outfile_path_edit.text()
-        if not base_outfile:
-            base_outfile = "DCR_format_yamaha.xlsx"
-        
-        current_outfile = self._get_output_filename(base_outfile)
+        # 출력 파일 경로 자동 생성 (DCR_format_yamaha_{Operator}_{Date}.xlsx)
+        current_outfile = self._get_output_filename("DCR_format_yamaha.xlsx")
         
         # Operator 이름 확인
         operator = self.operator_input.text().strip()
@@ -872,6 +868,24 @@ class MainWindow(QMainWindow):
             }
         )
         self._log_progress(result8)
+        self._log_progress("")
+        
+        # === Step 9: Generate Plots ===
+        self._log_progress("=" * 60)
+        self._log_progress("[ Step 9: Generate Statistical Plots ]")
+        self._log_progress("=" * 60)
+        
+        self._log_progress(f"Generating plots from output file...")
+        try:
+            plots = save_dcr_plots_from_file(current_outfile, operator)
+            if plots:
+                self._log_progress(f"Generated {len(plots)} plots:")
+                for p in plots:
+                    self._log_progress(f"  - {os.path.basename(p)}")
+            else:
+                self._log_progress("No plots generated (data not found or insufficient)")
+        except Exception as e:
+            self._log_progress(f"Warning: Plot generation failed - {str(e)}")
         
         self._log_progress("")
         self._log_progress("=" * 60)
@@ -886,7 +900,6 @@ class MainWindow(QMainWindow):
         
         # 출력 파일 경로 업데이트 (DCR 파일 경로 저장 - 이후 탭에서 참조용)
         self.dcr_output_path = current_outfile
-        self.outfile_path_edit.setText(current_outfile)
         self._save_config()
     
     # ========== Tab 2: Form Measurement Result ==========
@@ -933,6 +946,20 @@ class MainWindow(QMainWindow):
         dimension_layout.addWidget(dimension_browse_btn)
         input_layout.addLayout(dimension_layout)
         
+        # Dimension Sheet 선택 (드롭다운)
+        sheet_layout = QHBoxLayout()
+        sheet_label = QLabel("Dimension Sheet:")
+        sheet_label.setFixedWidth(120)
+        self.dimension_sheet_combo = QComboBox()
+        self.dimension_sheet_combo.setMinimumWidth(200)
+        self.dimension_sheet_combo.setPlaceholderText("Select sheet after loading file...")
+        self.dimension_sheet_combo.currentTextChanged.connect(self._on_dimension_sheet_changed)
+        
+        sheet_layout.addWidget(sheet_label)
+        sheet_layout.addWidget(self.dimension_sheet_combo)
+        sheet_layout.addStretch()
+        input_layout.addLayout(sheet_layout)
+        
         # LSLUSL 파일 선택
         lslusl_layout = QHBoxLayout()
         lslusl_label = QLabel("LSLUSL File:")
@@ -951,24 +978,20 @@ class MainWindow(QMainWindow):
         
         layout.addWidget(input_group)
         
-        # 출력 파일 설정 그룹박스
-        output_group = QGroupBox("Output File")
-        output_layout = QHBoxLayout(output_group)
+        # 출력 설정 그룹박스
+        output_file_group = QGroupBox("Output Settings")
+        output_file_layout = QHBoxLayout(output_file_group)
         
-        form_out_label = QLabel("Output File:")
-        form_out_label.setFixedWidth(120)
-        self.form_out_path_edit = QLineEdit()
-        self.form_out_path_edit.setText("Form_measurement_result.xlsx")
-        self.form_out_path_edit.setPlaceholderText("Enter output file name...")
-        form_out_browse_btn = QPushButton("Browse")
-        form_out_browse_btn.setObjectName("browse_btn")
-        form_out_browse_btn.clicked.connect(self._browse_form_output_file)
+        outfile_label = QLabel("Output Info:")
+        outfile_label.setFixedWidth(120)
+        self.form_outfile_info_label = QLabel("Filename will be auto-generated: Form_measurement_result_{Operator}_{Date}.xlsx")
+        self.form_outfile_info_label.setStyleSheet("color: #666666; font-style: italic;")
         
-        output_layout.addWidget(form_out_label)
-        output_layout.addWidget(self.form_out_path_edit)
-        output_layout.addWidget(form_out_browse_btn)
+        output_file_layout.addWidget(outfile_label)
+        output_file_layout.addWidget(self.form_outfile_info_label)
+        output_file_layout.addStretch()
         
-        layout.addWidget(output_group)
+        layout.addWidget(output_file_group)
         
         # 버튼 그룹
         btn_layout = QHBoxLayout()
@@ -995,7 +1018,7 @@ class MainWindow(QMainWindow):
         
         # 탭에 추가
         self.tab_widget.addTab(tab, "make Form Measurement Result file")
-    
+
     def _browse_etching_directory(self):
         """Etching 디렉토리 선택"""
         start_dir = self.etching_dir_edit.text() if self.etching_dir_edit.text() else ""
@@ -1023,29 +1046,32 @@ class MainWindow(QMainWindow):
                 sheet_names = xl.sheet_names
                 xl.close()
                 
-                if len(sheet_names) > 1:
-                    sheet_name, ok = QInputDialog.getItem(
-                        self,
-                        "Select Sheet",
-                        f"Multiple sheets found ({len(sheet_names)}).\nSelect sheet to use:",
-                        sheet_names,
-                        0,
-                        False
-                    )
-                    if ok and sheet_name:
-                        self.dimension_sheet_name = sheet_name
-                        self.dimension_file_edit.setText(file_path)
-                        self._save_config()
-                    else:
-                        return
-                else:
-                    self.dimension_sheet_name = sheet_names[0] if sheet_names else None
-                    self.dimension_file_edit.setText(file_path)
-                    self._save_config()
+                self.dimension_file_edit.setText(file_path)
+                
+                # 콤보박스에 시트 목록 추가
+                self.dimension_sheet_combo.blockSignals(True)
+                self.dimension_sheet_combo.clear()
+                self.dimension_sheet_combo.addItems(sheet_names)
+                
+                # 이전에 저장된 시트가 있으면 선택
+                if hasattr(self, 'dimension_sheet_name') and self.dimension_sheet_name in sheet_names:
+                    self.dimension_sheet_combo.setCurrentText(self.dimension_sheet_name)
+                elif sheet_names:
+                    self.dimension_sheet_name = sheet_names[0]
+                    self.dimension_sheet_combo.setCurrentIndex(0)
+                
+                self.dimension_sheet_combo.blockSignals(False)
+                self._save_config()
                     
             except Exception as e:
                 QMessageBox.warning(self, "Error", f"Failed to read Excel file:\n{str(e)}")
                 return
+    
+    def _on_dimension_sheet_changed(self, sheet_name):
+        """Dimension sheet 콤보박스 변경 이벤트"""
+        if sheet_name:
+            self.dimension_sheet_name = sheet_name
+            self._save_config()
     
     def _browse_lslusl_file(self):
         """LSLUSL 파일 선택"""
@@ -1059,29 +1085,14 @@ class MainWindow(QMainWindow):
         if file_path:
             self.lslusl_file_edit.setText(file_path)
             self._save_config()
-    
-    def _browse_form_output_file(self):
-        """Form Measurement 출력 파일 경로 선택"""
-        file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Save Form Measurement Result File",
-            self.form_out_path_edit.text(),
-            "Excel Files (*.xlsx)"
-        )
-        if file_path:
-            self.form_out_path_edit.setText(file_path)
-            self._save_config()
-    
+
     def _execute_form_measurement(self, for_auto_execute=False):
         """Form Measurement Result 파일 생성 실행"""
         if not for_auto_execute:
             self._clear_progress()
             
-        base_output = self.form_out_path_edit.text()
-        if not base_output:
-            base_output = "Form_measurement_result.xlsx"
-        
-        output_path = self._get_output_filename(base_output)
+        # 출력 파일 경로 자동 생성 (Form_measurement_result_{Operator}_{Date}.xlsx)
+        output_path = self._get_output_filename("Form_measurement_result.xlsx")
         
         etching_dir = self.etching_dir_edit.text()
         dimension_file = self.dimension_file_edit.text()
@@ -1094,9 +1105,12 @@ class MainWindow(QMainWindow):
         self._log_progress(f"Output: {output_path}", tab_index=1)
         
         result1 = create_form_measurement_file(output_path)
-        self._log_progress(result1, tab_index=1)
+        self._log_progress(result1 if isinstance(result1, str) else result1.get("message", ""), tab_index=1)
         self._log_progress("", tab_index=1)
         
+        tdr_map = {}
+        dim_map = {}
+
         # === Step 2: DK 파일에서 Impedance 데이터 ===
         if etching_dir:
             self._log_progress("=" * 60, tab_index=1)
@@ -1105,7 +1119,11 @@ class MainWindow(QMainWindow):
             self._log_progress(f"Etching Directory: {etching_dir}", tab_index=1)
             
             result2 = fill_impedance_data(output_path, etching_dir)
-            self._log_progress(result2, tab_index=1)
+            if isinstance(result2, dict):
+                tdr_map = result2.get("tdr_map", {})
+                self._log_progress(result2.get("message", ""), tab_index=1)
+            else:
+                self._log_progress(result2, tab_index=1)
         else:
             self._log_progress("Note: No etching directory selected. Skipping DK file processing.", tab_index=1)
         
@@ -1151,7 +1169,11 @@ class MainWindow(QMainWindow):
             
             self._log_progress(f"Sheet: {sheet_name}", tab_index=1)
             result3 = fill_dimension_data(output_path, dimension_file, sheet_name)
-            self._log_progress(result3, tab_index=1)
+            if isinstance(result3, dict):
+                dim_map = result3.get("dim_map", {})
+                self._log_progress(result3.get("message", ""), tab_index=1)
+            else:
+                self._log_progress(result3, tab_index=1)
         else:
             self._log_progress("Note: No dimension file selected. Skipping dimension processing.", tab_index=1)
         
@@ -1194,6 +1216,17 @@ class MainWindow(QMainWindow):
         self._log_progress("Form Measurement Result file created successfully!", tab_index=1)
         self._log_progress(f"Output saved to: {output_path}", tab_index=1)
         self._log_progress("=" * 60, tab_index=1)
+
+        # === Visualization (PNG 저장) ===
+        try:
+            plots = save_form_plots_from_workbook(tdr_map, dim_map, operator)
+            if plots:
+                for p in plots:
+                    self._log_progress(f"Plot saved: {p}", tab_index=1)
+            else:
+                self._log_progress("Note: No plot generated (insufficient data).", tab_index=1)
+        except Exception as e:
+            self._log_progress(f"Warning: Plot generation failed - {e}", tab_index=1)
         
         # 개별 실행인 경우에만 로그 저장
         if not for_auto_execute:
@@ -1201,7 +1234,7 @@ class MainWindow(QMainWindow):
             self._log_progress(log_result, tab_index=1)
         
         # 출력 경로 업데이트
-        self.form_out_path_edit.setText(output_path)
+        # self.form_out_path_edit.setText(output_path) # 에디트 박스 제거됨
         self._save_config()
 
     def _create_lsl_usl_tab(self):
@@ -1231,43 +1264,33 @@ class MainWindow(QMainWindow):
         merged_layout.addWidget(merged_browse_btn)
         input_layout.addLayout(merged_layout)
         
-        # DCR File 선택
+        # DCR File (자동 입력 정보)
         dcr_layout = QHBoxLayout()
-        dcr_label = QLabel("DCR File:")
+        dcr_label = QLabel("DCR File (Auto):")
         dcr_label.setFixedWidth(120)
-        self.lsl_dcr_file_edit = QLineEdit()
-        self.lsl_dcr_file_edit.setReadOnly(True)
-        self.lsl_dcr_file_edit.setPlaceholderText("Select DCR_format_yamaha.xlsx...")
-        if self.outfile_path:
-            self.lsl_dcr_file_edit.setText(self.outfile_path)
-        dcr_browse_btn = QPushButton("Browse")
-        dcr_browse_btn.setObjectName("browse_btn")
-        dcr_browse_btn.clicked.connect(self._browse_lsl_dcr_file)
+        self.lsl_dcr_file_info = QLabel("Auto-selected from Tab 1 output")
+        self.lsl_dcr_file_info.setStyleSheet("color: #1976D2; font-weight: bold;")
         dcr_layout.addWidget(dcr_label)
-        dcr_layout.addWidget(self.lsl_dcr_file_edit)
-        dcr_layout.addWidget(dcr_browse_btn)
+        dcr_layout.addWidget(self.lsl_dcr_file_info)
+        dcr_layout.addStretch()
         input_layout.addLayout(dcr_layout)
         
         layout.addWidget(input_group)
         
-        # 출력 파일 그룹
-        output_group = QGroupBox("Output File")
-        output_layout = QHBoxLayout(output_group)
+        # 출력 설정 그룹박스
+        output_file_group = QGroupBox("Output Settings")
+        output_file_layout = QHBoxLayout(output_file_group)
         
-        output_label = QLabel("Output File:")
-        output_label.setFixedWidth(120)
-        self.lsl_out_path_edit = QLineEdit()
-        self.lsl_out_path_edit.setText("Calculate_3Sigma_LSLUSL.xlsx")
-        self.lsl_out_path_edit.setPlaceholderText("Output file name...")
-        output_browse_btn = QPushButton("Browse")
-        output_browse_btn.setObjectName("browse_btn")
-        output_browse_btn.clicked.connect(self._browse_lsl_output_file)
+        outfile_label = QLabel("Output Info:")
+        outfile_label.setFixedWidth(120)
+        self.lsl_outfile_info_label = QLabel("Filename will be auto-generated: Calculate_3Sigma_LSLUSL_final.xlsx")
+        self.lsl_outfile_info_label.setStyleSheet("color: #666666; font-style: italic;")
         
-        output_layout.addWidget(output_label)
-        output_layout.addWidget(self.lsl_out_path_edit)
-        output_layout.addWidget(output_browse_btn)
+        output_file_layout.addWidget(outfile_label)
+        output_file_layout.addWidget(self.lsl_outfile_info_label)
+        output_file_layout.addStretch()
         
-        layout.addWidget(output_group)
+        layout.addWidget(output_file_group)
         
         # 실행 버튼
         btn_layout = QHBoxLayout()
@@ -1319,15 +1342,8 @@ class MainWindow(QMainWindow):
             self.lsl_dcr_file_edit.setText(file_path)
     
     def _browse_lsl_output_file(self):
-        """LSL 출력 파일 선택"""
-        file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Save Output File",
-            self.lsl_out_path_edit.text() or "Calculate_3Sigma_LSLUSL.xlsx",
-            "Excel Files (*.xlsx)"
-        )
-        if file_path:
-            self.lsl_out_path_edit.setText(file_path)
+        """LSL 출력 파일 선택 (더 이상 사용되지 않음)"""
+        pass
     
     def _execute_lsl_usl(self, for_auto_execute=False):
         """LSL/USL 계산 실행"""
@@ -1335,22 +1351,30 @@ class MainWindow(QMainWindow):
             self._clear_progress()
             
         merged_file = self.merged_file_edit.text()
-        dcr_file = self.lsl_dcr_file_edit.text()
-        base_output = self.lsl_out_path_edit.text()
+        # DCR 파일은 Tab 1의 출력 파일을 자동으로 사용 (설정된 게 없으면 기본 파일명 사용)
+        dcr_file = getattr(self, 'dcr_output_path', "output/DCR_format_yamaha.xlsx")
+        # operator는 항상 미리 확보 (dcr_file 존재 여부와 무관)
+        operator = self.operator_input.text().strip()
+        
+        # 파일이 실제로 존재하지 않으면 기본 경로 시도
+        if not os.path.exists(dcr_file):
+             # 현재 날짜와 Operator 이름이 포함된 최신 파일을 찾거나 기본 이름 사용
+             date_str = datetime.now().strftime("%Y%m%d")
+             possible_name = f"DCR_format_yamaha_{operator}_{date_str}.xlsx"
+             possible_path = os.path.join("output", possible_name)
+             if os.path.exists(possible_path):
+                 dcr_file = possible_path
         
         if not merged_file:
             self._log_progress("Error: Please select a merged file.", tab_index=2)
             return
         
-        if not dcr_file:
-            self._log_progress("Error: Please select a DCR file to get x value.", tab_index=2)
+        if not os.path.exists(dcr_file):
+            self._log_progress(f"Error: DCR file not found at {dcr_file}. Please execute Tab 1 first.", tab_index=2)
             return
         
-        if not base_output:
-            base_output = "Calculate_3Sigma_LSLUSL.xlsx"
-        
-        # Tab3 출력 파일은 _final 접미사 사용
-        output_file = self._get_output_filename(base_output, suffix_type="final")
+        # Tab3 출력 파일은 Calculate_3Sigma_LSLUSL_final.xlsx 로 고정
+        output_file = self._get_output_filename("Calculate_3Sigma_LSLUSL.xlsx", suffix_type="final")
         
         self._log_progress("=" * 60, tab_index=2)
         self._log_progress("[ Calculate LSL/USL Statistics ]", tab_index=2)
@@ -1361,7 +1385,7 @@ class MainWindow(QMainWindow):
         self._log_progress("-" * 60, tab_index=2)
         self._log_progress("Processing... This may take a while for large files.", tab_index=2)
         
-        result = calculate_lsl_usl_full(merged_file, dcr_file, output_file)
+        result = calculate_lsl_usl_full(merged_file, dcr_file, output_file, operator=operator)
         self._log_progress("", tab_index=2)
         self._log_progress(result, tab_index=2)
         
@@ -1384,6 +1408,64 @@ class MainWindow(QMainWindow):
         )
         self._log_progress(result_cover, tab_index=2)
         
+        # === Generate Statistical Plots ===
+        self._log_progress("", tab_index=2)
+        self._log_progress("=" * 60, tab_index=2)
+        self._log_progress("[ Generate Statistical Plots ]", tab_index=2)
+        self._log_progress("=" * 60, tab_index=2)
+        
+        try:
+            # 출력 파일에서 데이터를 읽어 플롯 생성
+            from openpyxl import load_workbook
+            import pandas as pd
+            import numpy as np
+            
+            wb = load_workbook(output_file, data_only=True)
+            
+            # 'tinh LCLUCL' 시트에서 데이터 추출 (행=NET, 열=측정값)
+            if "tinh LCLUCL" in wb.sheetnames:
+                ws = wb["tinh LCLUCL"]
+                data_rows = []
+                lsl_list = []
+                usl_list = []
+                
+                # 데이터 읽기 (행 2부터, A열=NET, B~끝=측정값)
+                for row in range(2, ws.max_row + 1):
+                    row_data = []
+                    for col in range(2, ws.max_column + 1):
+                        val = ws.cell(row=row, column=col).value
+                        if val is not None:
+                            try:
+                                row_data.append(float(val))
+                            except (ValueError, TypeError):
+                                pass
+                    if row_data:
+                        data_rows.append(row_data)
+                        # LSL/USL 계산 (평균 ± 3σ)
+                        arr = np.array(row_data)
+                        avg = np.mean(arr)
+                        std = np.std(arr)
+                        lsl_list.append(max(0, avg - 3 * std))
+                        usl_list.append(avg + 3 * std)
+                
+                if data_rows:
+                    data_df = pd.DataFrame(data_rows)
+                    plots = save_lslusl_plots_from_data(data_df, lsl_list, usl_list, operator)
+                    if plots:
+                        self._log_progress(f"Generated {len(plots)} plots:", tab_index=2)
+                        for p in plots:
+                            self._log_progress(f"  - {os.path.basename(p)}", tab_index=2)
+                    else:
+                        self._log_progress("No plots generated (insufficient data)", tab_index=2)
+                else:
+                    self._log_progress("No data found in 'tinh LCLUCL' sheet for plotting", tab_index=2)
+            else:
+                self._log_progress("Sheet 'tinh LCLUCL' not found - skipping plot generation", tab_index=2)
+            
+            wb.close()
+        except Exception as e:
+            self._log_progress(f"Warning: Plot generation failed - {str(e)}", tab_index=2)
+        
         self._log_progress("", tab_index=2)
         self._log_progress("=" * 60, tab_index=2)
         self._log_progress("LSL/USL calculation completed!", tab_index=2)
@@ -1397,7 +1479,8 @@ class MainWindow(QMainWindow):
             self._log_progress(log_result, tab_index=2)
         
         # 출력 경로 업데이트
-        self.lsl_out_path_edit.setText(output_file)
+        # self.lsl_out_path_edit.setText(output_file) # 에디트 박스 제거됨
+
     
     def _auto_execute_all(self):
         """모든 탭 자동 실행"""
@@ -1458,8 +1541,13 @@ class MainWindow(QMainWindow):
             QApplication.processEvents()
             
             # DCR 파일을 Tab 1의 출력 파일로 설정
-            if self.outfile_path_edit.text():
-                self.lsl_dcr_file_edit.setText(self.outfile_path_edit.text())
+            if hasattr(self, 'dcr_output_path') and self.dcr_output_path:
+                dcr_file_for_lsl = self.dcr_output_path
+            else:
+                # Tab 1이 실행되지 않았을 경우를 대비해 추정 경로 사용
+                operator = self.operator_input.text().strip()
+                date_str = datetime.now().strftime("%Y%m%d")
+                dcr_file_for_lsl = os.path.join("output", f"DCR_format_yamaha_{operator}_{date_str}.xlsx")
             
             self._execute_lsl_usl(for_auto_execute=True)
             

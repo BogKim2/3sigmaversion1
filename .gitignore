@@ -1,22 +1,48 @@
 # Python-generated files
 __pycache__/
 *.py[oc]
-build/
-wheels/
 *.egg-info
+wheels/
 
 # Virtual environments
-.venv
+.venv/
 
-# Temporary files (Excel/PPT)
+# Build artifacts
+build/
+dist/
+*.spec
+
+# Temporary files
 ~$*
 
-# Application outputs
+# Application outputs & logs
 output/
 *.dat
+
+# Excel files (exclude all, then whitelist templates)
 *.xlsx
+*.xlsm
+*.xls
 !Form measurement result files_form.xlsx
 !DCR format base new form - yamaha.xlsx
-files.json
-build/
-*.spec
+!int_med.xlsx
+
+# PowerPoint files
+*.pptx
+
+# Root files.json (user-specific config)
+/files.json
+
+# Zip archives
+*.zip
+
+# Reference data folders
+301_3sigma CAL/
+C++/
+
+# IDE & editor settings
+.vscode/
+.claude/
+
+# UV lock file (can regenerate)
+uv.lock

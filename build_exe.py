@@ -13,6 +13,8 @@ def build():
         "--windowed",          # 콘솔 창 없이 실행 (GUI 앱)
         "--noconfirm",         # 기존 빌드 폴더 자동 덮어쓰기
         "--clean",             # 빌드 전 캐시 정리
+        # 리소스 파일 포함
+        "--add-data=Form measurement result files_form.xlsx;.",
         # 필요한 모듈들 포함
         "--hidden-import=PySide6.QtCore",
         "--hidden-import=PySide6.QtWidgets",
@@ -27,6 +29,7 @@ def build():
         "--hidden-import=pandas",
         "--hidden-import=numpy",
         "--hidden-import=xlrd",
+        "--hidden-import=matplotlib",
         # files.json은 exe와 같은 위치에 동적으로 생성됨
         # 진입점
         "main.py"
